@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 This is a word list generation project that processes Princeton WordNet 3.0 data to create filtered word lists. The project has two main components:
 
 1. **Rust application** (`src/main.rs`) - Basic Rust project structure
-2. **Ruby word processor** (`build_words.rb`) - WordNet data parser and word list generator
+2. **Ruby word processor** (`script/build_words.rb`) - WordNet data parser and word list generator
 
 ## WordNet Data Structure
 
@@ -46,12 +46,12 @@ cargo build
 cargo run
 
 # Process WordNet data with Ruby
-ruby build_words.rb
+ruby script/build_words.rb
 ```
 
 ## Word List Generation
 
-The Ruby script `build_words.rb` processes WordNet data to generate `assets/words.txt` with filtered words:
+The Ruby script `script/build_words.rb` processes WordNet data to generate `assets/words.txt` with filtered words:
 - No proper nouns (excluding lex files 15, 18 and instance relationships)
 - Only alphabetical characters [a-zA-Z]
 - Deduplicated by lowercase
