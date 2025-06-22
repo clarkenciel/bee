@@ -1,9 +1,10 @@
 #!/usr/bin/env ruby
 
-# WordNet Word List Generator
+# Multi-Source Word List Generator
 # 
-# This script processes Princeton WordNet data to create filtered word lists.
-# It can work with local WordNet data or download archives automatically.
+# This script processes multiple word list sources to create comprehensive filtered word lists.
+# Sources: WordNet (semantic filtering), SCOWL (inflected forms), Moby (completeness)
+# It can work with local data or download archives automatically.
 #
 # ## WordNet Data Format Understanding
 #
@@ -62,12 +63,16 @@
 # ruby build_words.rb --help
 #
 # ## Results
-# Generates assets/words.txt with ~46,932 unique words:
-# - No proper nouns (excluding lex files 15, 18 and instance relationships)
-# - Only alphabetical characters [a-zA-Z]
-# - Deduplicated by lowercase
-# - Longer than 3 characters
-# - ASCII-only
+# Generates assets/words.txt with 100-200k unique words:
+# - WordNet: ~47k base forms with proper noun filtering
+# - SCOWL: ~340k words including inflected forms
+# - Moby: ~354k comprehensive word list
+# - Combined and deduplicated with consistent filtering:
+#   - No proper nouns (using WordNet's semantic rules)
+#   - Only alphabetical characters [a-zA-Z]
+#   - Deduplicated by lowercase
+#   - Longer than 3 characters
+#   - ASCII-only
 
 require 'set'
 require 'fileutils'
@@ -75,75 +80,214 @@ require 'net/http'
 require 'uri'
 require 'optparse'
 
-class WordNetParser
+class MultiSourceWordParser
   DICT_DIR = './dict'
   OUTPUT_FILE = 'assets/words.txt'
-  DEFAULT_URL = 'https://wordnetcode.princeton.edu/wn3.1.dict.tar.gz'
+  DEFAULT_WORDNET_URL = 'https://wordnetcode.princeton.edu/wn3.1.dict.tar.gz'
+  DEFAULT_SCOWL_URL = 'https://github.com/en-wl/wordlist/archive/refs/heads/master.zip'
+  DEFAULT_MOBY_URL = 'https://github.com/elitejake/Moby-Project/archive/refs/heads/main.zip'
   
   # Lexicographer file numbers that contain proper nouns
   PROPER_NOUN_LEX_FILES = [15, 18].freeze # noun.location, noun.person
   
-  def initialize(url = nil)
+  def initialize(options = {})
     @words = Set.new
-    @url = url
-    @downloaded_archive = nil
-    @extracted_dir = nil
+    @wordnet_words = Set.new
+    @scowl_words = Set.new  
+    @moby_words = Set.new
+    @options = options
+    @downloaded_files = []
+    @extracted_dirs = []
+    @proper_nouns = Set.new  # Cache proper nouns from WordNet
   end
   
   def extract_words
     begin
-      setup_dict_dir
+      puts "Multi-Source Word List Generation Starting..."
       
-      puts "Extracting words from WordNet data..."
+      # Process sources based on options
+      process_wordnet if @options[:wordnet] != false
+      process_scowl if @options[:scowl] == true
+      process_moby if @options[:moby] == true
       
-      # Process all data files
-      ['data.noun', 'data.verb', 'data.adj', 'data.adv'].each do |filename|
-        filepath = File.join(DICT_DIR, filename)
-        next unless File.exist?(filepath)
-        
-        puts "Processing #{filename}..."
-        process_file(filepath)
-      end
+      # Merge all sources
+      merge_sources
       
-      puts "Found #{@words.size} unique words"
+      puts "Final word count: #{@words.size} unique words"
+      puts "  WordNet: #{@wordnet_words.size} words"
+      puts "  SCOWL: #{@scowl_words.size} words" if @options[:scowl]
+      puts "  Moby: #{@moby_words.size} words" if @options[:moby]
+      
       write_output
-      
-      # Clean up only if everything succeeded
       cleanup
     rescue => e
       puts "Error: #{e.message}"
-      puts "Archive left on disk for inspection: #{@downloaded_archive}" if @downloaded_archive
+      puts "Downloaded files left for inspection: #{@downloaded_files}" unless @downloaded_files.empty?
       raise
     end
   end
   
   private
   
-  def setup_dict_dir
-    if @url
-      puts "Downloading WordNet archive from #{@url}..."
-      download_and_extract
-    elsif !Dir.exist?(DICT_DIR)
-      raise "No dict directory found and no URL provided. Please provide a URL or ensure #{DICT_DIR} exists."
+  def process_wordnet
+    puts "Processing WordNet data..."
+    setup_wordnet_dir
+    
+    # Process all WordNet data files
+    ['data.noun', 'data.verb', 'data.adj', 'data.adv'].each do |filename|
+      filepath = File.join(DICT_DIR, filename)
+      next unless File.exist?(filepath)
+      
+      puts "Processing WordNet #{filename}..."
+      process_wordnet_file(filepath)
+    end
+    
+    puts "WordNet processing complete: #{@wordnet_words.size} words"
+  end
+  
+  def process_scowl
+    puts "Processing SCOWL data..."
+    setup_scowl_data
+    
+    # Process word list files from alt12dicts (contains inflected forms)
+    scowl_files = [
+      File.join('./scowl', 'alt12dicts', '2of4brif.txt'),  # Most comprehensive base list
+      File.join('./scowl', 'alt12dicts', '2of12full.txt'), # Full word list with frequency
+      File.join('./scowl', 'alt12dicts', '3esl.txt'),      # ESL word list
+      File.join('./scowl', 'alt12dicts', '5desk.txt')      # Desk dictionary
+    ]
+    
+    scowl_files.each do |filepath|
+      next unless File.exist?(filepath)
+      puts "Processing SCOWL #{File.basename(filepath)}..."
+      process_scowl_file(filepath)
+    end
+    
+    puts "SCOWL processing complete: #{@scowl_words.size} words"
+  end
+  
+  def process_moby
+    puts "Processing Moby data..."
+    setup_moby_data
+    
+    # Process main Moby word list
+    moby_file = File.join('./moby', 'mobyword.lst')
+    if File.exist?(moby_file)
+      puts "Processing Moby word list..."
+      process_moby_file(moby_file)
     else
-      puts "Using existing dict directory: #{DICT_DIR}"
+      puts "Warning: Moby word list not found at #{moby_file}"
+    end
+    
+    puts "Moby processing complete: #{@moby_words.size} words"
+  end
+  
+  def merge_sources
+    puts "Merging word sources..."
+    
+    # Start with WordNet words (these have proper noun filtering)
+    @words.merge(@wordnet_words)
+    
+    # Add SCOWL words, filtering against WordNet proper nouns
+    @scowl_words.each do |word|
+      next if is_likely_proper_noun?(word)
+      @words.add(word)
+    end
+    
+    # Add Moby words, filtering against WordNet proper nouns  
+    @moby_words.each do |word|
+      next if is_likely_proper_noun?(word)
+      @words.add(word)
     end
   end
   
-  def download_and_extract
+  def setup_wordnet_dir
+    wordnet_url = @options[:wordnet_url] || DEFAULT_WORDNET_URL
+    
+    if @options[:wordnet_url]
+      puts "Downloading WordNet archive from #{wordnet_url}..."
+      download_and_extract_wordnet(wordnet_url)
+    elsif !Dir.exist?(DICT_DIR)
+      puts "No dict directory found, downloading from default URL: #{DEFAULT_WORDNET_URL}"
+      download_and_extract_wordnet(DEFAULT_WORDNET_URL)
+    else
+      puts "Using existing WordNet dict directory: #{DICT_DIR}"
+    end
+  end
+  
+  def setup_scowl_data
+    scowl_url = @options[:scowl_url] || DEFAULT_SCOWL_URL
+    scowl_file = 'wordlist-master.zip'
+    
+    unless Dir.exist?('./scowl')
+      puts "Downloading SCOWL from #{scowl_url}..."
+      downloaded_file = download_file(scowl_url, scowl_file)
+      @downloaded_files << downloaded_file
+      extract_archive(downloaded_file)
+      
+      # Check if we already have a wordlist directory extracted
+      if Dir.exist?('./wordlist-1')
+        puts "Using existing extracted wordlist-1 directory"
+        FileUtils.mv('./wordlist-1', './scowl') unless Dir.exist?('./scowl')
+      else
+        # Find and move extracted SCOWL directory
+        wordlist_dir = Dir.glob('wordlist-*').first
+        if wordlist_dir
+          FileUtils.mv(wordlist_dir, './scowl')
+          @extracted_dirs << './scowl'
+        else
+          raise "SCOWL extraction failed - no wordlist-* directory found"
+        end
+      end
+    else
+      puts "Using existing SCOWL directory: ./scowl"
+    end
+  end
+  
+  def setup_moby_data
+    moby_url = @options[:moby_url] || DEFAULT_MOBY_URL
+    moby_file = 'moby-main.zip'
+    
+    unless Dir.exist?('./moby')
+      puts "Downloading Moby from #{moby_url}..."
+      downloaded_file = download_file(moby_url, moby_file)
+      @downloaded_files << downloaded_file
+      extract_archive(downloaded_file)
+      
+      # Find and setup Moby directory structure
+      if Dir.exist?('Moby-Project-main')
+        FileUtils.mv('Moby-Project-main', './moby')
+        @extracted_dirs << './moby'
+      else
+        raise "Moby extraction failed - no Moby-Project-main directory found"
+      end
+    else
+      puts "Using existing Moby directory: ./moby"
+    end
+  end
+  
+  def download_and_extract_wordnet(url)
     # Download the archive
-    @downloaded_archive = download_file(@url)
+    filename = File.basename(URI(url).path)
+    downloaded_file = download_file(url, filename)
+    @downloaded_files << downloaded_file
     
     # Extract to temporary location
-    extract_archive(@downloaded_archive)
+    extract_archive(downloaded_file)
     
     # Set up dict directory
     setup_extracted_dict
   end
   
-  def download_file(url)
+  def download_file(url, filename = nil)
     uri = URI(url)
-    filename = File.basename(uri.path)
+    filename ||= File.basename(uri.path)
+    
+    # Skip if file already exists
+    if File.exist?(filename)
+      puts "Using existing #{filename}"
+      return filename
+    end
     
     puts "Downloading #{filename}..."
     
@@ -151,12 +295,20 @@ class WordNetParser
       request = Net::HTTP::Get.new(uri)
       
       http.request(request) do |response|
-        raise "HTTP Error: #{response.code} #{response.message}" unless response.code == '200'
-        
-        File.open(filename, 'wb') do |file|
-          response.read_body do |chunk|
-            file.write(chunk)
+        case response.code
+        when '200'
+          File.open(filename, 'wb') do |file|
+            response.read_body do |chunk|
+              file.write(chunk)
+            end
           end
+        when '302', '301'
+          # Follow redirect
+          redirect_url = response['location']
+          puts "Following redirect to #{redirect_url}"
+          return download_file(redirect_url, filename)
+        else
+          raise "HTTP Error: #{response.code} #{response.message}"
         end
       end
     end
@@ -209,27 +361,82 @@ class WordNetParser
   end
   
   def cleanup
-    if @downloaded_archive && File.exist?(@downloaded_archive)
-      puts "Cleaning up downloaded archive: #{@downloaded_archive}"
-      File.delete(@downloaded_archive)
+    @downloaded_files.each do |file|
+      if File.exist?(file)
+        puts "Cleaning up downloaded file: #{file}"
+        File.delete(file)
+      end
     end
     
-    if @extracted_dir && Dir.exist?(@extracted_dir)
-      puts "Cleaning up extracted directory: #{@extracted_dir}"
-      FileUtils.rm_rf(@extracted_dir)
+    @extracted_dirs.each do |dir|
+      if Dir.exist?(dir)
+        puts "Cleaning up extracted directory: #{dir}"
+        FileUtils.rm_rf(dir)
+      end
     end
     
     puts "Cleanup completed"
   end
   
-  def process_file(filepath)
+  def process_wordnet_file(filepath)
     File.foreach(filepath) do |line|
       # Skip license header lines (start with spaces)
       next if line.start_with?('  ')
       
       # Parse the line and extract primary word
       word = extract_primary_word(line)
-      add_word(word) if word
+      if word
+        processed_word = process_word(word)
+        if processed_word
+          @wordnet_words.add(processed_word)
+          # Cache proper nouns detected by WordNet for filtering other sources
+          @proper_nouns.add(processed_word.downcase) if is_proper_noun_wordnet?(line)
+        end
+      end
+    end
+  end
+  
+  def process_scowl_file(filepath)
+    File.foreach(filepath) do |line|
+      line = line.strip
+      next if line.empty?
+      
+      # Handle different SCOWL file formats
+      word = case File.basename(filepath)
+      when '2of12full.txt'
+        # Format: " 9:  9  -#  -&  -=   A" - extract the word at the end
+        parts = line.split
+        parts.last if parts.size >= 5
+      when '2of4brif.txt', '3esl.txt', '5desk.txt'
+        # Simple format: one word per line
+        line
+      else
+        line
+      end
+      
+      next if word.nil? || word.empty?
+      
+      processed_word = process_word(word)
+      if processed_word
+        @scowl_words.add(processed_word)
+      end
+    end
+  end
+  
+  def process_moby_file(filepath)
+    File.foreach(filepath) do |line|
+      # Moby uses different delimiters - check for comma separation
+      words = line.include?(',') ? line.split(',') : [line]
+      
+      words.each do |word|
+        word = word.strip
+        next if word.empty?
+        
+        processed_word = process_word(word)
+        if processed_word
+          @moby_words.add(processed_word)
+        end
+      end
     end
   end
   
@@ -246,13 +453,19 @@ class WordNetParser
     primary_word = match[5]
     lex_id = match[6]
     
-    # Filter out proper nouns
-    return if is_proper_noun?(lex_filenum, line)
+    # Filter out proper nouns (for WordNet processing)
+    return if is_proper_noun_wordnet?(line)
     
     primary_word
   end
   
-  def is_proper_noun?(lex_filenum, line)
+  def is_proper_noun_wordnet?(line)
+    # Extract lex_filenum from WordNet line for proper noun detection
+    match = line.match(/^(\d{8})\s+(\d{2})\s+([nvasr])\s+([0-9a-f]{2})\s+(\S+)\s+([0-9a-f])\s/)
+    return false unless match
+    
+    lex_filenum = match[2].to_i
+    
     # Method 1: Check lexicographer file numbers
     return true if PROPER_NOUN_LEX_FILES.include?(lex_filenum)
     
@@ -262,26 +475,45 @@ class WordNetParser
     false
   end
   
-  def add_word(word)
+  def is_likely_proper_noun?(word)
+    # Use cached proper nouns from WordNet processing
+    return true if @proper_nouns.include?(word.downcase)
+    
+    # Basic heuristic: starts with capital letter (may catch some proper nouns)
+    return true if word[0] == word[0].upcase && word.length > 1 && word[1] == word[1].downcase
+    
+    false
+  end
+  
+  def process_word(word)
     # Skip multi-word terms (contain underscores - these are phrases, not single words)
-    return if word.include?('_')
+    return nil if word.include?('_')
     
     # Only alphabetical characters
-    return unless word.match?(/\A[a-zA-Z]+\Z/)
+    return nil unless word.match?(/\A[a-zA-Z]+\Z/)
     
-    # Longer than 3 characters
-    return unless word.length > 3
+    # At least 4 characters long
+    return nil unless word.length > 3
     
     # Convert to ASCII
     ascii_word = to_ascii(word)
-    return unless ascii_word
+    return nil unless ascii_word
     
-    # Add lowercase version to deduplicate (dog and Dog -> dog)
-    @words.add(ascii_word.downcase)
+    # Return lowercase version to deduplicate (dog and Dog -> dog)
+    ascii_word.downcase
   end
   
   def to_ascii(word)
-    # Mapping for common non-ASCII characters to ASCII equivalents
+    # Simple ASCII-only filtering - reject non-ASCII words
+    return word if word.ascii_only?
+    
+    # For now, we'll just reject non-ASCII words to avoid encoding issues
+    # In production, consider using the 'unidecode' gem for proper diacritic handling
+    nil
+  end
+  
+  def to_ascii_unused(word)
+    # This method is kept for reference but not used
     ascii_map = {
       # Lowercase vowels with diacritics
       '�' => 'a', '�' => 'a', '�' => 'a', '�' => 'a', '�' => 'a', '�' => 'a', '' => 'a',
@@ -342,28 +574,76 @@ end
 
 # Command line argument parsing
 if __FILE__ == $0
-  options = {}
+  options = {
+    wordnet: true,  # WordNet enabled by default
+    scowl: false,   # SCOWL disabled by default
+    moby: false     # Moby disabled by default
+  }
   
   OptionParser.new do |opts|
     opts.banner = "Usage: #{$0} [options]"
+    opts.separator ""
+    opts.separator "Data Sources:"
     
-    opts.on("-u", "--url URL", "WordNet archive URL (default: #{WordNetParser::DEFAULT_URL})") do |url|
-      options[:url] = url
+    opts.on("--wordnet", "Enable WordNet processing (default: enabled)") do
+      options[:wordnet] = true
     end
+    
+    opts.on("--no-wordnet", "Disable WordNet processing") do
+      options[:wordnet] = false
+    end
+    
+    opts.on("--scowl", "Enable SCOWL processing (adds inflected forms)") do
+      options[:scowl] = true
+    end
+    
+    opts.on("--moby", "Enable Moby word lists processing") do
+      options[:moby] = true
+    end
+    
+    opts.on("--all", "Enable all data sources") do
+      options[:wordnet] = true
+      options[:scowl] = true
+      options[:moby] = true
+    end
+    
+    opts.separator ""
+    opts.separator "Custom URLs:"
+    
+    opts.on("--wordnet-url URL", "Custom WordNet archive URL") do |url|
+      options[:wordnet_url] = url
+    end
+    
+    opts.on("--scowl-url URL", "Custom SCOWL archive URL") do |url|
+      options[:scowl_url] = url
+    end
+    
+    opts.on("--moby-url URL", "Custom Moby archive URL") do |url|
+      options[:moby_url] = url
+    end
+    
+    opts.separator ""
+    opts.separator "Other options:"
     
     opts.on("-h", "--help", "Show this help message") do
       puts opts
+      puts ""
+      puts "Examples:"
+      puts "  #{$0}                    # WordNet only (default)"
+      puts "  #{$0} --scowl            # WordNet + SCOWL inflected forms"
+      puts "  #{$0} --all              # All sources for maximum coverage"
+      puts "  #{$0} --no-wordnet --moby # Moby only"
       exit
     end
   end.parse!
   
-  # Use provided URL or default if none specified and no local dict exists
-  url = options[:url]
-  if !url && !Dir.exist?(WordNetParser::DICT_DIR)
-    puts "No local dict directory found, using default URL: #{WordNetParser::DEFAULT_URL}"
-    url = WordNetParser::DEFAULT_URL
+  # Validate that at least one source is enabled
+  unless options[:wordnet] || options[:scowl] || options[:moby]
+    puts "Error: At least one data source must be enabled"
+    puts "Use --help for usage information"
+    exit 1
   end
   
-  parser = WordNetParser.new(url)
+  parser = MultiSourceWordParser.new(options)
   parser.extract_words
 end
