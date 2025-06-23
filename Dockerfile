@@ -1,5 +1,7 @@
 # Stage 1: Build environment
-FROM clarkenciel/rust-builder:rust-1.82 AS rust-base
+FROM rust:1.87.0-bookworm AS rust-base
+
+RUN rustup target add wasm32-unknown-unknown
 
 FROM rust-base AS builder
 
@@ -30,7 +32,7 @@ COPY assets ./assets
 RUN trunk build --release
 
 # Stage 2: Production server with NGINX
-FROM nginx:alpine
+FROM nginx:bookworm
 
 # Copy the built assets from the builder stage
 COPY --from=builder /app/dist /usr/share/nginx/html
