@@ -297,6 +297,10 @@ impl<'d> Data<'d> {
         'words: 'd,
     {
         let datetime = js_sys::Date::new_0();
+        datetime.set_hours(0);
+        datetime.set_minutes(0);
+        datetime.set_seconds(0);
+        datetime.set_milliseconds(0);
         leptos::logging::log!("datetime {:?}", datetime);
         let daydex = datetime.get_time() as u64;
         leptos::logging::log!("daydex {}", daydex);
