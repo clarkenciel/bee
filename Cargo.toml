@@ -5,7 +5,8 @@ edition = "2024"
 
 [dependencies]
 console_error_panic_hook = "0.1.7"
+js-sys = "0.3.77"
 leptos = { version = "0.8.2", features = ["csr"] }
 rand = { version = "0.9.1", default-features = false, features = ["small_rng"] }
 reactive_stores = "0.2.2"
-web-sys = { version = "0.3.77", features = ["DateTimeValue"], default-features = false }
+web-sys = { version = "0.3.77", default-features = false }

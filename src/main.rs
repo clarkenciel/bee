@@ -2,7 +2,6 @@ use std::{collections::{BTreeSet, HashSet}, f32::consts::PI, fmt::Write as _};
 
 use leptos::prelude::*;
 use rand::{Rng, SeedableRng};
-use web_sys::{MouseEvent, SubmitEvent};
 
 const WORDS: &str = include_str!("../assets/words.txt");
 
@@ -45,7 +44,7 @@ fn App() -> impl IntoView {
 
     let available_letters_submit_check = available_letters.clone();
 
-    let submit = move |e: SubmitEvent| {
+    let submit = move |e: web_sys::SubmitEvent| {
         e.prevent_default();
 
         let word = std::mem::take(&mut *set_word.write());
@@ -297,7 +296,11 @@ impl<'d> Data<'d> {
     where
         'words: 'd,
     {
-        let daydex = web_sys::DateTimeValue::new().unchecked_into_f64() as u64;
+        let datetime = js_sys::Date::new_0();
+        leptos::logging::log!("datetime {:?}", datetime);
+        let daydex = datetime.get_time() as u64;
+        leptos::logging::log!("daydex {}", daydex);
+
         let mut valid_words = HashSet::new();
         let mut available_letters = Vec::with_capacity(7);
         let mut required_letter = '\0';
@@ -344,10 +347,6 @@ enum ValidationError {
     MissingRequiredLetter { letter: char, candidate: String },
     TooShort { candidate: String },
     InvalidWord { candidate: String },
-}
-
-fn compute_daydex() -> usize {
-    web_sys::DateTimeValue::new().unchecked_into_f64() as usize
 }
 
 #[derive(Debug, Clone)]
