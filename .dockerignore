@@ -1,0 +1,11 @@
+*
+!src
+!assets
+!Cargo.*
+!package.json
+!pnpm-lock.yaml
+!.sqlx
+!nginx.conf
+!Trunk.toml
+!input.css
+!index.html
