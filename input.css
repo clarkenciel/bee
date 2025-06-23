@@ -1,0 +1,7 @@
+@import "tailwindcss" source(none);
+@source "./src/**/*.rs";
+@plugin "daisyui";
+
+.required-letter {
+  @apply btn-warning;
+}
