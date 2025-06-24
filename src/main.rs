@@ -4,8 +4,10 @@ use std::{
     fmt::Write as _,
 };
 
+use codee::{Decoder, HybridEncoder};
 use leptos::prelude::*;
 use rand::{Rng, SeedableRng};
+use serde::{Deserialize, Serialize};
 
 const WORDS: &str = include_str!("../assets/words.txt");
 
@@ -16,16 +18,48 @@ fn main() {
 
 #[component]
 fn App() -> impl IntoView {
+    let storage = web_sys::window()
+        .expect("Failed to get window")
+        .local_storage()
+        .expect("Failed to get local storage")
+        .expect("no local storage found");
+    let storage_key = daydex().to_string();
+
+    let data_key = format!("{}/data", storage_key);
+    let data: Data = match storage.get(&data_key) {
+        Ok(Some(data)) => {
+            codee::string::JsonSerdeCodec::decode(&data).expect("Failed to decode stored data")
+        }
+        Ok(None) => {
+            let new_data = Data::default();
+            storage
+                .set(
+                    &data_key,
+                    &codee::string::JsonSerdeCodec::encode_str(&new_data)
+                        .expect("Failed to encode new data"),
+                )
+                .expect("Failed to store new data");
+            new_data
+        }
+        Err(e) => panic!("Storage access failed {:?}", e),
+    };
+    let (score, set_score, _) = leptos_use::storage::use_local_storage::<
+        u32,
+        codee::string::JsonSerdeCodec,
+    >(format!("{}/score", storage_key));
+    let (submitted, set_submitted, _) = leptos_use::storage::use_local_storage::<
+        BTreeSet<_>,
+        codee::string::JsonSerdeCodec,
+    >(format!("{}/submitted", storage_key));
+
     let Data {
         max_score,
         required_letter,
         available_letters,
         valid_words,
-    } = Data::from_wordstr(&WORDS);
+    } = data;
     let max_score = max_score.clone();
     let (word, set_word) = signal(String::new());
-    let (score, set_score) = signal(0);
-    let (submitted, set_submitted) = signal(BTreeSet::new());
     let (_error, set_error) = signal(None);
 
     provide_context(set_word);
@@ -34,7 +68,7 @@ fn App() -> impl IntoView {
         "Words {}",
         valid_words
             .iter()
-            .map(|w| w.word)
+            .map(|w| w.word.as_str())
             .collect::<Vec<_>>()
             .join("\n")
     );
@@ -291,33 +325,29 @@ fn LetterGrid(required_letter: Letter, other_letters: Vec<Letter>) -> impl IntoV
     }
 }
 
-#[derive(Debug, Clone)]
-struct Data<'a> {
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
+struct Data {
     max_score: u32,
     required_letter: Letter,
     available_letters: Vec<Letter>,
-    valid_words: HashSet<Word<'a>>,
+    valid_words: HashSet<Word>,
 }
 
-impl<'d> Data<'d> {
-    fn from_wordstr<'words>(word_str: &'words str) -> Self
-    where
-        'words: 'd,
-    {
-        let datetime = js_sys::Date::new_0();
-        datetime.set_hours(0);
-        datetime.set_minutes(0);
-        datetime.set_seconds(0);
-        datetime.set_milliseconds(0);
-        leptos::logging::log!("datetime {:?}", datetime);
-        let daydex = datetime.get_time() as u64;
-        leptos::logging::log!("daydex {}", daydex);
+impl Default for Data {
+    fn default() -> Self {
+        Self::from_wordstr(&WORDS)
+    }
+}
+
+impl Data {
+    fn from_wordstr(word_str: &str) -> Self {
+        let daydex = daydex();
 
         let mut valid_words = HashSet::new();
         let mut available_letters = Vec::with_capacity(7);
         let mut required_letter = '\0';
         let mut rng = rand::rngs::SmallRng::seed_from_u64(daydex);
-        while !valid_words.iter().any(|w: &Word<'_>| w.is_pangram) {
+        while !valid_words.iter().any(|w: &Word| w.is_pangram) {
             valid_words.clear();
 
             available_letters.clear();
@@ -356,47 +386,56 @@ impl<'d> Data<'d> {
     }
 }
 
+fn daydex() -> u64 {
+    let datetime = js_sys::Date::new_0();
+    datetime.set_hours(0);
+    datetime.set_minutes(0);
+    datetime.set_seconds(0);
+    datetime.set_milliseconds(0);
+    leptos::logging::log!("datetime {:?}", datetime);
+    let daydex = datetime.get_time() as u64;
+    leptos::logging::log!("daydex {}", daydex);
+    daydex
+}
+
 enum ValidationError {
     MissingRequiredLetter { letter: char, candidate: String },
     TooShort { candidate: String },
     InvalidWord { candidate: String },
 }
 
-#[derive(Debug, Clone)]
-struct Word<'a> {
-    word: &'a str,
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct Word {
+    word: String,
     chars: HashSet<char>,
     is_pangram: bool,
 }
 
-impl std::hash::Hash for Word<'_> {
+impl std::hash::Hash for Word {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.word.hash(state)
     }
 }
 
-impl std::cmp::PartialEq for Word<'_> {
+impl std::cmp::PartialEq for Word {
     fn eq(&self, other: &Self) -> bool {
         self.word == other.word
     }
 }
 
-impl std::cmp::Eq for Word<'_> {}
+impl std::cmp::Eq for Word {}
 
-impl<'a> Word<'a> {
-    fn new<'w>(word: &'w str, is_pangram: bool) -> Self
-    where
-        'w: 'a,
-    {
+impl Word {
+    fn new(word: &str, is_pangram: bool) -> Self {
         Self {
-            word,
+            word: word.to_owned(),
             is_pangram,
             chars: word.chars().collect(),
         }
     }
 }
 
-impl Word<'_> {
+impl Word {
     fn score(&self) -> u32 {
         if self.word.len() == 4 {
             1
@@ -405,7 +444,7 @@ impl Word<'_> {
         }
     }
 
-    fn is_superset(&self, other: &Word<'_>) -> bool {
+    fn is_superset(&self, other: &Word) -> bool {
         self.chars.is_superset(&other.chars)
     }
 
@@ -436,7 +475,7 @@ impl Word<'_> {
     }
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash, Serialize, Deserialize)]
 struct Letter(char);
 
 impl Letter {

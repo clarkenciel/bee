@@ -4,9 +4,12 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+codee = { version = "0.3.0", features = ["json_serde"] }
 console_error_panic_hook = "0.1.7"
 js-sys = "0.3.77"
 leptos = { version = "0.8.2", features = ["csr"] }
+leptos-use = { version = "0.16.2", default-features = false, features = ["storage"] }
 rand = { version = "0.9.1", default-features = false, features = ["small_rng"] }
 reactive_stores = "0.2.2"
-web-sys = { version = "0.3.77", default-features = false }
+serde = "1.0.219"
+web-sys = { version = "0.3.77", default-features = false, features = ["Storage", "Window"] }
