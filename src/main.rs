@@ -1,4 +1,8 @@
-use std::{collections::{BTreeSet, HashSet}, f32::consts::PI, fmt::Write as _};
+use std::{
+    collections::{BTreeSet, HashSet},
+    f32::consts::PI,
+    fmt::Write as _,
+};
 
 use leptos::prelude::*;
 use rand::{Rng, SeedableRng};
@@ -86,7 +90,11 @@ fn App() -> impl IntoView {
                 <div class="self-start w-full">
                     <label class="flex flex-row gap-1 text-2xl">
                         {score}
-                        <progress class="progress progress-accent h-full self-end" max=max_score value=score />
+                        <progress
+                            class="progress progress-accent h-6 self-end"
+                            max=max_score
+                            value=score
+                        /> {max_score}
                     </label>
                 </div>
 
@@ -336,7 +344,8 @@ impl<'d> Data<'d> {
             );
         }
 
-        let max_score = valid_words.iter().map(|w| w.score()).sum();
+        let max_score =
+            (valid_words.iter().map(|w| w.score()).sum::<u32>() as f32 * 0.30).trunc() as u32;
 
         Self {
             max_score,
