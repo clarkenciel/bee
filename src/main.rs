@@ -377,9 +377,9 @@ fn LetterGrid(required_letter: Letter, other_letters: Vec<Letter>) -> impl IntoV
         .collect::<Vec<(Letter, HexPos)>>();
 
     view! {
-        <div class="h-[280px] sm:h-auto hex-container overflow-hidden flex items-center justify-center">
+        <div class="h-[300px] sm:h-auto overflow-hidden flex items-center justify-center">
             <svg
-                class="w-full h-auto"
+                class="w-full h-auto hex-container"
                 viewBox="0 0 500 280"
                 preserveAspectRatio="xMidYMid meet"
             >
