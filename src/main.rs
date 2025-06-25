@@ -232,7 +232,11 @@ fn Score(score: Signal<u32>, buckets: ScoreBuckets) -> impl IntoView {
                         key=|(label, _)| label.clone()
                         children=move |(label, score_threshold)| {
                             let current_threshold = Signal::derive(move || {
-                                if label == current_threshold.get() { Some(score.get()) } else { None }
+                                if label == current_threshold.get() {
+                                    Some(score.get())
+                                } else {
+                                    None
+                                }
                             });
                             let is_filled = move || score.get() >= score_threshold;
 
@@ -345,7 +349,7 @@ fn LetterHex(#[prop(name = "letter")] Letter(l): Letter, pos: HexPos) -> impl In
             }
         />
         <text
-            class="font-extrabold text-2xl uppercase cursor-pointer dark:text-base-content dark:hover:text-accent-content"
+            class="hex-text font-extrabold uppercase cursor-pointer dark:text-base-content dark:hover:text-accent-content"
             x=cx - 10.0
             y=cy + 10.0
             pointer-events="none"
@@ -373,13 +377,19 @@ fn LetterGrid(required_letter: Letter, other_letters: Vec<Letter>) -> impl IntoV
         .collect::<Vec<(Letter, HexPos)>>();
 
     view! {
-        <svg class="w-full h-auto" viewBox="0 0 500 280" preserveAspectRatio="xMidYMid meet">
-            <LetterHex letter=required_letter pos=HexPos::Center />
+        <div class="h-[280px] sm:h-auto hex-container overflow-hidden flex items-center justify-center">
+            <svg
+                class="w-full h-auto"
+                viewBox="0 0 500 280"
+                preserveAspectRatio="xMidYMid meet"
+            >
+                <LetterHex letter=required_letter pos=HexPos::Center />
 
-            <For each=move || other_letters.clone() key=|hex| hex.clone() let((letter, pos))>
-                <LetterHex letter=letter pos=pos />
-            </For>
-        </svg>
+                <For each=move || other_letters.clone() key=|hex| hex.clone() let((letter, pos))>
+                    <LetterHex letter=letter pos=pos />
+                </For>
+            </svg>
+        </div>
     }
 }
 
