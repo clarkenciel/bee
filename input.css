@@ -5,3 +5,19 @@
 .required-letter {
   @apply btn-warning;
 }
+
+.progress-segments {
+  @apply grid grid-cols-9 items-center h-10 w-full;
+
+  .segment {
+    @apply bg-gray-200 h-3 w-3 rounded-4xl justify-self-center border-2 border-black transition-colors duration-200;
+  }
+
+  .filled {
+    @apply bg-info;
+  }
+
+  .current {
+    @apply h-8 w-8 text-info-content font-bold flex items-center justify-center;
+  }
+}

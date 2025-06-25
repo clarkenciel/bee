@@ -2,10 +2,11 @@ use std::{
     collections::{BTreeSet, HashSet},
     f32::consts::PI,
     fmt::Write as _,
+    sync::Arc,
 };
 
 use codee::{Decoder, HybridEncoder};
-use leptos::prelude::*;
+use leptos::{attr::readonly, prelude::*};
 use rand::{Rng, SeedableRng};
 use serde::{Deserialize, Serialize};
 
@@ -27,9 +28,21 @@ fn App() -> impl IntoView {
 
     let data_key = format!("{}/data", storage_key);
     let data: Data = match storage.get(&data_key) {
-        Ok(Some(data)) => {
-            codee::string::JsonSerdeCodec::decode(&data).expect("Failed to decode stored data")
-        }
+        Ok(Some(data)) => match codee::string::JsonSerdeCodec::decode(&data) {
+            Ok(data) => data,
+            Err(e) => {
+                leptos::logging::warn!("Stored data decoding failed: {}", e);
+                let new_data = Data::default();
+                storage
+                    .set(
+                        &data_key,
+                        &codee::string::JsonSerdeCodec::encode_str(&new_data)
+                            .expect("Failed to encode new data"),
+                    )
+                    .expect("Failed to store new data");
+                new_data
+            }
+        },
         Ok(None) => {
             let new_data = Data::default();
             storage
@@ -53,12 +66,11 @@ fn App() -> impl IntoView {
     >(format!("{}/submitted", storage_key));
 
     let Data {
-        max_score,
+        score_buckets,
         required_letter,
         available_letters,
         valid_words,
     } = data;
-    let max_score = max_score.clone();
     let (word, set_word) = signal(String::new());
     let (_error, set_error) = signal(None);
 
@@ -120,19 +132,12 @@ fn App() -> impl IntoView {
 
     view! {
         <div class="container p-4">
-            <div class="container flex flex-row w-full justify-between gap-1">
+            <div class="container flex flex-col w-full justify-between gap-1">
                 <div class="self-start w-full">
-                    <label class="flex flex-row gap-1 text-2xl">
-                        {score}
-                        <progress
-                            class="progress progress-accent h-6 self-end"
-                            max=max_score
-                            value=score
-                        /> {max_score}
-                    </label>
+                    <Score score=score buckets=score_buckets />
                 </div>
 
-                <button type="button" class="btn btn-info self-end" onclick="guessed.showModal()">
+                <button type="button" class="btn btn-ghost w-full" onclick="guessed.showModal()">
                     Guessed words
                 </button>
                 <dialog id="guessed" class="modal">
@@ -190,6 +195,59 @@ fn App() -> impl IntoView {
                 >
                     submit
                 </button>
+            </div>
+        </div>
+    }
+}
+
+#[component]
+fn Score(score: Signal<u32>, buckets: ScoreBuckets) -> impl IntoView {
+    let max = buckets[8].1;
+    let (buckets, _) = signal(buckets);
+    let current_threshold = Signal::derive(move || {
+        buckets
+            .get()
+            .iter()
+            .rfind(|(_label, thresh)| score.get() >= *thresh)
+            .cloned()
+            .map(|(label, _score)| label)
+            .unwrap_or_else(|| buckets.get()[8].0.clone())
+    });
+
+    view! {
+        <div class="grid grid-cols-12 items-center w-full">
+            <div aria-label="current level" class="font-bold col-span-3">
+                {current_threshold}
+            </div>
+            <div
+                class="col-span-9"
+                role="progressbar"
+                aria-valuenow=score
+                aria-valuemax=max
+                aria-label="score progress"
+            >
+                <div class="progress-segments">
+                    <For
+                        each=move || buckets.get()
+                        key=|(label, _)| label.clone()
+                        children=move |(label, score_threshold)| {
+                            let current_threshold = Signal::derive(move || {
+                                if label == current_threshold.get() { Some(score.get()) } else { None }
+                            });
+                            let is_filled = move || score.get() >= score_threshold;
+
+                            view! {
+                                <div
+                                    class="segment"
+                                    class:filled=is_filled
+                                    class:current=move || { current_threshold.get().is_some() }
+                                >
+                                    {current_threshold}
+                                </div>
+                            }
+                        }
+                    />
+                </div>
             </div>
         </div>
     }
@@ -325,9 +383,11 @@ fn LetterGrid(required_letter: Letter, other_letters: Vec<Letter>) -> impl IntoV
     }
 }
 
+type ScoreBuckets = [(String, u32); 9];
+
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 struct Data {
-    max_score: u32,
+    score_buckets: ScoreBuckets,
     required_letter: Letter,
     available_letters: Vec<Letter>,
     valid_words: HashSet<Word>,
@@ -374,11 +434,22 @@ impl Data {
             );
         }
 
-        let max_score =
-            (valid_words.iter().map(|w| w.score()).sum::<u32>() as f32 * 0.30).trunc() as u32;
+        let max_score = valid_words.iter().map(|w| w.score()).sum::<u32>() as f32;
+
+        let score_buckets = [
+            ("Beginner".to_owned(), (max_score * 0.0).trunc() as u32),
+            ("Good Start".to_owned(), (max_score * 0.02).trunc() as u32),
+            ("Moving Up".to_owned(), (max_score * 0.05).trunc() as u32),
+            ("Good".to_owned(), (max_score * 0.08).trunc() as u32),
+            ("Solid".to_owned(), (max_score * 0.15).trunc() as u32),
+            ("Nice".to_owned(), (max_score * 0.25).trunc() as u32),
+            ("Great".to_owned(), (max_score * 0.4).trunc() as u32),
+            ("Amazing".to_owned(), (max_score * 0.5).trunc() as u32),
+            ("Genius".to_owned(), (max_score * 0.7).trunc() as u32),
+        ];
 
         Self {
-            max_score,
+            score_buckets,
             required_letter: Letter::new(required_letter),
             valid_words,
             available_letters: available_letters.into_iter().map(Letter::new).collect(),
