@@ -168,7 +168,7 @@ fn App() -> impl IntoView {
             <form id="word-form" on:submit=submit class="w-full">
                 <input
                     type="text"
-                    class="input input-primary input-xl w-full"
+                    class="input input-ghost input-xl w-full text-center"
                     bind:value=(word, set_word)
                     aria-label="word"
                     minlength=4
