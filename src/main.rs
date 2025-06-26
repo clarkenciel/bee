@@ -410,7 +410,25 @@ fn hex_points((cx, cy): &(f32, f32)) -> Vec<(f32, f32)> {
 }
 
 #[component]
-fn LetterHex(letter: ReadSignal<Letter>, pos: HexPos) -> impl IntoView {
+fn RequiredLetter(letter: ReadSignal<Letter>, pos: HexPos) -> impl IntoView {
+    LetterHex(LetterHexProps {
+        class: "letter required".to_owned(),
+        letter,
+        pos,
+    })
+}
+
+#[component]
+fn OtherLetter(letter: ReadSignal<Letter>, pos: HexPos) -> impl IntoView {
+    LetterHex(LetterHexProps {
+        class: "letter other".to_owned(),
+        letter,
+        pos,
+    })
+}
+
+#[component]
+fn LetterHex(mut class: String, letter: ReadSignal<Letter>, pos: HexPos) -> impl IntoView {
     let add_letter = use_context::<WriteSignal<String>>().expect("No word context provided");
 
     let (cx, cy) = pos.center();
@@ -426,10 +444,12 @@ fn LetterHex(letter: ReadSignal<Letter>, pos: HexPos) -> impl IntoView {
         )
         .expect("Hex pointstring build failed!");
 
+    let _ = write!(&mut class, " {}", "cursor-pointer stroke-neutral stroke-2");
+
     view! {
         <polygon
             points=points
-            class="cursor-pointer stroke-neutral stroke-2 hover:fill-accent fill-info"
+            class=class
             on:click:target=move |e| {
                 e.prevent_default();
                 leptos::logging::log!("CLICKED LETTER {}", letter.read().0);
@@ -476,10 +496,10 @@ fn LetterGrid(
                 viewBox="0 0 500 280"
                 preserveAspectRatio="xMidYMid meet"
             >
-                <LetterHex letter=required_letter pos=HexPos::Center />
+                <RequiredLetter letter=required_letter pos=HexPos::Center />
 
                 <For each=move || other_letters() key=|hex| hex.clone() let((letter, pos))>
-                    <LetterHex letter=signal(letter).0 pos=pos />
+                    <OtherLetter letter=signal(letter).0 pos=pos />
                 </For>
             </svg>
         </div>

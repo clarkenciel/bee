@@ -27,6 +27,14 @@
   @apply scale-150 sm:scale-100 md:scale-100;
 }
 
+.letter.required {
+  @apply hover:fill-accent fill-warning;
+}
+
+.letter.other {
+  @apply hover:fill-accent fill-info;
+}
+
 .hex-text {
   font-size: calc(1.5rem * var(--hex-scale));
   @apply text-3xl sm:text-xl md:text-xl;
