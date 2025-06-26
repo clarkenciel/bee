@@ -23,7 +23,7 @@ fn App() -> impl IntoView {
         .local_storage()
         .expect("Failed to get local storage")
         .expect("no local storage found");
-    let storage_key = daydex().to_string();
+    let storage_key = day_64().to_string();
 
     let (score, set_score, _) = leptos_use::storage::use_local_storage::<
         u32,
@@ -72,7 +72,8 @@ fn Board(
 ) -> impl IntoView {
     let (valid_words, _) = signal(valid_words);
     let (required_letter, _) = signal(required_letter);
-    let (other_letters, _) = signal(other_letters);
+    let (other_letters, set_other_letters) = signal(other_letters);
+    let (_, rng) = signal(rand::rngs::SmallRng::seed_from_u64(day_64()));
 
     let (word, set_word) = signal(String::new());
     provide_context(set_word);
@@ -119,6 +120,12 @@ fn Board(
         set_submitted.write().insert(word);
     };
 
+    let shuffle_letters = move |_| {
+        use rand::seq::SliceRandom;
+        let rng = &mut *rng.write();
+        set_other_letters.write().shuffle(rng);
+    };
+
     view! {
         <div id="board">
             <form id="word-form" on:submit=submit class="w-full">
@@ -144,6 +151,15 @@ fn Board(
                 >
                     delete
                 </button>
+                <div class="col-span-2 grid justify-items-center">
+                    <button
+                        type="button"
+                        class="btn btn-accent btn-circle"
+                        on:click=shuffle_letters
+                    >
+                        <ReloadIcon />
+                    </button>
+                </div>
                 <button
                     type="submit"
                     form="word-form"
@@ -153,6 +169,50 @@ fn Board(
                 </button>
             </div>
         </div>
+    }
+}
+
+#[component]
+fn ReloadIcon() -> impl IntoView {
+    view! {
+        <svg
+            width="24px"
+            height="24px"
+            stroke-width="1.5"
+            viewBox="0 0 24 24"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+            color="#000000"
+        >
+            <path
+                d="M22 6.99999C19 6.99999 13.5 6.99999 11.5 12.5C9.5 18 5 18 2 18"
+                stroke="#000000"
+                stroke-width="1.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+            ></path>
+            <path
+                d="M20 5C20 5 21.219 6.21895 22 7C21.219 7.78105 20 9 20 9"
+                stroke="#000000"
+                stroke-width="1.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+            ></path>
+            <path
+                d="M22 18C19 18 13.5 18 11.5 12.5C9.5 6.99999 5 7.00001 2 7"
+                stroke="#000000"
+                stroke-width="1.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+            ></path>
+            <path
+                d="M20 20C20 20 21.219 18.781 22 18C21.219 17.219 20 16 20 16"
+                stroke="#000000"
+                stroke-width="1.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+            ></path>
+        </svg>
     }
 }
 
@@ -444,7 +504,7 @@ impl Default for PuzzleConfig {
 
 impl PuzzleConfig {
     fn from_wordstr(word_str: &str) -> Self {
-        let daydex = daydex();
+        let daydex = day_64();
 
         let mut rng = rand::rngs::SmallRng::seed_from_u64(daydex);
         let mut valid_words = HashSet::new();
@@ -544,7 +604,7 @@ impl PuzzleConfig {
     }
 }
 
-fn daydex() -> u64 {
+fn day_64() -> u64 {
     let datetime = js_sys::Date::new_0();
     datetime.set_hours(0);
     datetime.set_minutes(0);
