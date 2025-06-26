@@ -2,11 +2,10 @@ use std::{
     collections::{BTreeSet, HashSet},
     f32::consts::PI,
     fmt::Write as _,
-    sync::Arc,
 };
 
 use codee::{Decoder, HybridEncoder};
-use leptos::{attr::readonly, prelude::*};
+use leptos::prelude::*;
 use rand::{Rng, SeedableRng};
 use serde::{Deserialize, Serialize};
 
@@ -26,109 +25,23 @@ fn App() -> impl IntoView {
         .expect("no local storage found");
     let storage_key = daydex().to_string();
 
-    let data_key = format!("{}/data", storage_key);
-    let data: Data = match storage.get(&data_key) {
-        Ok(Some(data)) => match codee::string::JsonSerdeCodec::decode(&data) {
-            Ok(data) => data,
-            Err(e) => {
-                leptos::logging::warn!("Stored data decoding failed: {}", e);
-                let new_data = Data::default();
-                storage
-                    .set(
-                        &data_key,
-                        &codee::string::JsonSerdeCodec::encode_str(&new_data)
-                            .expect("Failed to encode new data"),
-                    )
-                    .expect("Failed to store new data");
-                new_data
-            }
-        },
-        Ok(None) => {
-            let new_data = Data::default();
-            storage
-                .set(
-                    &data_key,
-                    &codee::string::JsonSerdeCodec::encode_str(&new_data)
-                        .expect("Failed to encode new data"),
-                )
-                .expect("Failed to store new data");
-            new_data
-        }
-        Err(e) => panic!("Storage access failed {:?}", e),
-    };
     let (score, set_score, _) = leptos_use::storage::use_local_storage::<
         u32,
         codee::string::JsonSerdeCodec,
     >(format!("{}/score", storage_key));
+    provide_context((score, set_score));
     let (submitted, set_submitted, _) = leptos_use::storage::use_local_storage::<
         BTreeSet<_>,
         codee::string::JsonSerdeCodec,
     >(format!("{}/submitted", storage_key));
+    provide_context((submitted, set_submitted));
 
-    let Data {
+    let PuzzleConfig {
         score_buckets,
         required_letter,
-        available_letters,
+        other_letters,
         valid_words,
-    } = data;
-    let (word, set_word) = signal(String::new());
-    let (_error, set_error) = signal(None);
-
-    provide_context(set_word);
-
-    leptos::logging::log!(
-        "Words {}",
-        valid_words
-            .iter()
-            .map(|w| w.word.as_str())
-            .collect::<Vec<_>>()
-            .join("\n")
-    );
-    Effect::watch(
-        move || word.get(),
-        move |word, prev_word, _| {
-            leptos::logging::log!("Word: {}; Prev: {:?}", word, prev_word);
-        },
-        false,
-    );
-
-    let available_letters_submit_check = available_letters.clone();
-
-    let submit = move |e: web_sys::SubmitEvent| {
-        e.prevent_default();
-
-        let word = std::mem::take(&mut *set_word.write());
-        if submitted.get().contains(&word) {
-            return;
-        }
-
-        leptos::logging::log!("Checking {}", word);
-        if !word.contains(required_letter.0) {
-            *set_error.write() = Some(ValidationError::MissingRequiredLetter {
-                letter: required_letter.0.clone(),
-                candidate: word,
-            });
-            return;
-        }
-
-        let mut candidate = Word::new(&word, false);
-        if !valid_words.contains(&candidate) {
-            *set_error.write() = Some(ValidationError::InvalidWord { candidate: word });
-            return;
-        }
-        candidate.is_pangram = available_letters_submit_check
-            .iter()
-            .all(|l| candidate.contains(l));
-
-        *set_score.write() += candidate.score();
-        set_submitted.write().insert(word);
-    };
-
-    let other_letters: Vec<Letter> = available_letters
-        .iter()
-        .filter(|l| **l != required_letter)
-        .cloned()
-        .collect();
+    } = PuzzleConfig::load_from_storage(&storage_key, &storage);
 
     view! {
         <div class="container p-4">
@@ -137,34 +50,77 @@ fn App() -> impl IntoView {
                     <Score score=score buckets=score_buckets />
                 </div>
 
-                <button type="button" class="btn btn-ghost w-full" onclick="guessed.showModal()">
-                    Guessed words
-                </button>
-                <dialog id="guessed" class="modal">
-                    <section class="modal-box">
-                        <h1>Guessed words</h1>
-                        <ul>
-                            <For
-                                each=move || submitted.get()
-                                key=|w| w.clone()
-                                children=|word| {
-                                    view! { <li>{word}</li> }
-                                }
-                            />
-                        </ul>
-                        <div class="modal-action">
-                            <form method="dialog">
-                                <button type="submit" class="btn">
-                                    Close
-                                </button>
-                            </form>
-                        </div>
-                    </section>
-                </dialog>
+                <GuessedWords submitted=submitted />
             </div>
 
             <div class="divider divider-secondary"></div>
 
+            <Board
+                required_letter=required_letter
+                other_letters=other_letters
+                valid_words=valid_words
+            />
+        </div>
+    }
+}
+
+#[component]
+fn Board(
+    required_letter: Letter,
+    other_letters: Vec<Letter>,
+    valid_words: HashSet<Word>,
+) -> impl IntoView {
+    let (valid_words, _) = signal(valid_words);
+    let (required_letter, _) = signal(required_letter);
+    let (other_letters, _) = signal(other_letters);
+
+    let (word, set_word) = signal(String::new());
+    provide_context(set_word);
+    Effect::watch(
+        move || word.get(),
+        move |word, prev_word, _| {
+            leptos::logging::log!("Word: {}; Prev: {:?}", word, prev_word);
+        },
+        false,
+    );
+
+    let (_error, set_error) = signal(None);
+    let (_score, set_score) =
+        use_context::<(Signal<u32>, WriteSignal<u32>)>().expect("No writable score provided");
+    let (submitted, set_submitted) =
+        use_context::<(Signal<BTreeSet<String>>, WriteSignal<BTreeSet<String>>)>()
+            .expect("No writable submittion list provided");
+    let submit = move |e: web_sys::SubmitEvent| {
+        e.prevent_default();
+
+        let word = std::mem::take(&mut *set_word.write());
+        if submitted.read().contains(&word) {
+            return;
+        }
+
+        leptos::logging::log!("Checking {}", word);
+        if !word.contains(required_letter.read().0) {
+            *set_error.write() = Some(ValidationError::MissingRequiredLetter {
+                letter: required_letter.read().0,
+                candidate: word,
+            });
+            return;
+        }
+
+        let mut candidate = Word::new(&word, false);
+        if !valid_words.read().contains(&candidate) {
+            *set_error.write() = Some(ValidationError::InvalidWord { candidate: word });
+            return;
+        }
+        candidate.is_pangram = candidate.contains(&*required_letter.read())
+            && other_letters.read().iter().all(|l| candidate.contains(l));
+
+        *set_score.write() += candidate.score();
+        set_submitted.write().insert(word);
+    };
+
+    view! {
+        <div id="board">
             <form id="word-form" on:submit=submit class="w-full">
                 <input
                     type="text"
@@ -176,7 +132,7 @@ fn App() -> impl IntoView {
                 />
             </form>
 
-            <LetterGrid required_letter=required_letter.clone() other_letters=other_letters />
+            <LetterGrid required_letter=required_letter other_letters=other_letters />
 
             <div class="grid grid-cols-12">
                 <button
@@ -196,6 +152,78 @@ fn App() -> impl IntoView {
                     submit
                 </button>
             </div>
+        </div>
+    }
+}
+
+#[cfg(not(debug_assertions))]
+const PAGE_SIZE: usize = 10;
+
+#[cfg(debug_assertions)]
+const PAGE_SIZE: usize = 1;
+
+#[component]
+fn GuessedWords(submitted: Signal<BTreeSet<String>>) -> impl IntoView {
+    let (current_page, set_current_page) = signal(0);
+    let pages = move || {
+        submitted
+            .read()
+            .iter()
+            .fold(vec![vec![]], |mut pages, word| {
+                let page = pages.last_mut().unwrap();
+                if page.len() >= PAGE_SIZE {
+                    pages.push(vec![word.clone()])
+                } else {
+                    page.push(word.clone());
+                }
+                pages
+            })
+    };
+
+    view! {
+        <div class="w-full">
+            <button type="button" class="btn btn-ghost w-full" onclick="guessed.showModal()">
+                Guessed words
+            </button>
+            <dialog id="guessed" class="modal">
+                <section class="modal-box">
+                    <h1>Guessed words</h1>
+                    <ul>
+                        <For
+                            each=move || pages()[*current_page.read()].clone()
+                            key=|w| w.clone()
+                            let(word)
+                        >
+                            <li>{word}</li>
+                        </For>
+                    </ul>
+                    <div class="modal-action">
+                        <button
+                            type="button"
+                            class="btn"
+                            on:click=move |_| *set_current_page.write() -= 1
+                            disabled=move || !(1..pages().len()).contains(&*current_page.read())
+                        >
+                            prev
+                        </button>
+                        <button
+                            type="button"
+                            class="btn"
+                            on:click=move |_| *set_current_page.write() += 1
+                            disabled=move || {
+                                !(0..(pages().len() - 1)).contains(&*current_page.read())
+                            }
+                        >
+                            next
+                        </button>
+                        <form method="dialog">
+                            <button type="submit" class="btn">
+                                Close
+                            </button>
+                        </form>
+                    </div>
+                </section>
+            </dialog>
         </div>
     }
 }
@@ -322,7 +350,7 @@ fn hex_points((cx, cy): &(f32, f32)) -> Vec<(f32, f32)> {
 }
 
 #[component]
-fn LetterHex(#[prop(name = "letter")] Letter(l): Letter, pos: HexPos) -> impl IntoView {
+fn LetterHex(letter: ReadSignal<Letter>, pos: HexPos) -> impl IntoView {
     let add_letter = use_context::<WriteSignal<String>>().expect("No word context provided");
 
     let (cx, cy) = pos.center();
@@ -344,8 +372,8 @@ fn LetterHex(#[prop(name = "letter")] Letter(l): Letter, pos: HexPos) -> impl In
             class="cursor-pointer stroke-neutral stroke-2 hover:fill-accent fill-info"
             on:click:target=move |e| {
                 e.prevent_default();
-                leptos::logging::log!("CLICKED LETTER {}", l);
-                add_letter.write().push(l)
+                leptos::logging::log!("CLICKED LETTER {}", letter.read().0);
+                add_letter.write().push(letter.read().0)
             }
         />
         <text
@@ -354,7 +382,7 @@ fn LetterHex(#[prop(name = "letter")] Letter(l): Letter, pos: HexPos) -> impl In
             y=cy + 10.0
             pointer-events="none"
         >
-            {l}
+            {move || { letter.read().0 }}
         </text>
     }
 }
@@ -369,12 +397,17 @@ const OTHER_LETTER_POSITIONS: &[HexPos] = &[
 ];
 
 #[component]
-fn LetterGrid(required_letter: Letter, other_letters: Vec<Letter>) -> impl IntoView {
-    let other_letters = other_letters
-        .iter()
-        .cloned()
-        .zip(OTHER_LETTER_POSITIONS.iter().copied())
-        .collect::<Vec<(Letter, HexPos)>>();
+fn LetterGrid(
+    required_letter: ReadSignal<Letter>,
+    other_letters: ReadSignal<Vec<Letter>>,
+) -> impl IntoView {
+    let other_letters = move || {
+        other_letters
+            .get()
+            .into_iter()
+            .zip(OTHER_LETTER_POSITIONS.iter().copied())
+            .collect::<Vec<(Letter, HexPos)>>()
+    };
 
     view! {
         <div class="h-[300px] sm:h-auto overflow-hidden flex items-center justify-center">
@@ -385,8 +418,8 @@ fn LetterGrid(required_letter: Letter, other_letters: Vec<Letter>) -> impl IntoV
             >
                 <LetterHex letter=required_letter pos=HexPos::Center />
 
-                <For each=move || other_letters.clone() key=|hex| hex.clone() let((letter, pos))>
-                    <LetterHex letter=letter pos=pos />
+                <For each=move || other_letters() key=|hex| hex.clone() let((letter, pos))>
+                    <LetterHex letter=signal(letter).0 pos=pos />
                 </For>
             </svg>
         </div>
@@ -396,52 +429,63 @@ fn LetterGrid(required_letter: Letter, other_letters: Vec<Letter>) -> impl IntoV
 type ScoreBuckets = [(String, u32); 9];
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
-struct Data {
+struct PuzzleConfig {
     score_buckets: ScoreBuckets,
     required_letter: Letter,
-    available_letters: Vec<Letter>,
+    other_letters: Vec<Letter>,
     valid_words: HashSet<Word>,
 }
 
-impl Default for Data {
+impl Default for PuzzleConfig {
     fn default() -> Self {
         Self::from_wordstr(&WORDS)
     }
 }
 
-impl Data {
+impl PuzzleConfig {
     fn from_wordstr(word_str: &str) -> Self {
         let daydex = daydex();
 
-        let mut valid_words = HashSet::new();
-        let mut available_letters = Vec::with_capacity(7);
-        let mut required_letter = '\0';
         let mut rng = rand::rngs::SmallRng::seed_from_u64(daydex);
+        let mut valid_words = HashSet::new();
+        let mut required_letter = '\0';
+        let mut other_letters = Vec::with_capacity(6);
+        let mut all_letters = Vec::with_capacity(26);
+        let mut available_letters = HashSet::with_capacity(7);
+        let mut word_letters = HashSet::with_capacity(64);
         while !valid_words.iter().any(|w: &Word| w.is_pangram) {
             valid_words.clear();
-
+            other_letters.clear();
             available_letters.clear();
-            while available_letters.len() < 7 {
-                let candidate = rng.random_range('a'..='z');
-                if !available_letters.contains(&candidate) {
-                    available_letters.push(candidate);
-                }
+            all_letters.clear();
+            all_letters.extend('a'..='z');
+
+            let required_idx = rng.random_range(0..all_letters.len());
+            required_letter = all_letters[required_idx];
+            available_letters.insert(required_letter);
+            all_letters.remove(required_idx);
+
+            for _ in 0..6 {
+                let candidate_idx = rng.random_range(0..all_letters.len());
+                let candidate = all_letters[candidate_idx];
+                other_letters.push(candidate);
+                available_letters.insert(candidate);
+                all_letters.remove(candidate_idx);
             }
 
-            required_letter = available_letters[0].clone();
-
-            valid_words.extend(
-                word_str
-                    .lines()
-                    .filter(|l| {
-                        l.contains(required_letter)
-                            && l.chars().all(|v| available_letters.contains(&v))
-                    })
-                    .map(|w: &str| {
-                        let is_pangram = available_letters.iter().all(|l| w.contains(*l));
-                        Word::new(w, is_pangram)
-                    }),
-            );
+            valid_words.extend(word_str.lines().filter_map(|l| {
+                word_letters.extend(l.chars());
+                let maybe_word = match (
+                    word_letters.is_subset(&available_letters),
+                    available_letters.is_subset(&word_letters),
+                ) {
+                    (true, true) => Some(Word::new(l, true)),
+                    (false, _) => None,
+                    _ => Some(Word::new(l, false)),
+                };
+                word_letters.clear();
+                maybe_word
+            }));
         }
 
         let max_score = valid_words.iter().map(|w| w.score()).sum::<u32>() as f32;
@@ -462,7 +506,40 @@ impl Data {
             score_buckets,
             required_letter: Letter::new(required_letter),
             valid_words,
-            available_letters: available_letters.into_iter().map(Letter::new).collect(),
+            other_letters: other_letters.into_iter().map(Letter::new).collect(),
+        }
+    }
+
+    fn load_from_storage(storage_key: &str, storage: &web_sys::Storage) -> Self {
+        let data_key = format!("{}/data", storage_key);
+        match storage.get(&data_key) {
+            Ok(Some(data)) => match codee::string::JsonSerdeCodec::decode(&data) {
+                Ok(data) => data,
+                Err(e) => {
+                    leptos::logging::warn!("Stored data decoding failed: {}", e);
+                    let new_data = PuzzleConfig::default();
+                    storage
+                        .set(
+                            &data_key,
+                            &codee::string::JsonSerdeCodec::encode_str(&new_data)
+                                .expect("Failed to encode new data"),
+                        )
+                        .expect("Failed to store new data");
+                    new_data
+                }
+            },
+            Ok(None) => {
+                let new_data = PuzzleConfig::default();
+                storage
+                    .set(
+                        &data_key,
+                        &codee::string::JsonSerdeCodec::encode_str(&new_data)
+                            .expect("Failed to encode new data"),
+                    )
+                    .expect("Failed to store new data");
+                new_data
+            }
+            Err(e) => panic!("Storage access failed {:?}", e),
         }
     }
 }
@@ -521,7 +598,8 @@ impl Word {
         if self.word.len() == 4 {
             1
         } else {
-            self.word.len() as u32
+            let pangram_boost = if self.is_pangram { 7 } else { 0 };
+            self.word.len() as u32 + pangram_boost
         }
     }
 
