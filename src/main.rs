@@ -1,7 +1,7 @@
 use std::{
     collections::{BTreeSet, HashSet},
     f32::consts::PI,
-    fmt::Write as _,
+    fmt::Write as _, time::Duration,
 };
 
 use codee::{Decoder, HybridEncoder};
@@ -85,17 +85,23 @@ fn Board(
         false,
     );
 
-    let (_error, set_error) = signal(None);
     let (_score, set_score) =
         use_context::<(Signal<u32>, WriteSignal<u32>)>().expect("No writable score provided");
     let (submitted, set_submitted) =
         use_context::<(Signal<BTreeSet<String>>, WriteSignal<BTreeSet<String>>)>()
             .expect("No writable submittion list provided");
+    let (set_error, error) = use_validation_errors();
     let submit = move |e: web_sys::SubmitEvent| {
         e.prevent_default();
 
         let word = std::mem::take(&mut *set_word.write());
+        if word.len() < 4 {
+            set_error.set(Some(ValidationError::TooShort { candidate: word }));
+            return
+        }
+
         if submitted.read().contains(&word) {
+            set_error.set(Some(ValidationError::AlreadyGuessed));
             return;
         }
 
@@ -128,6 +134,7 @@ fn Board(
 
     view! {
         <div id="board">
+            <div>{error}</div>
             <form id="word-form" on:submit=submit class="w-full">
                 <input
                     type="text"
@@ -138,9 +145,7 @@ fn Board(
                     autofocus
                 />
             </form>
-
             <LetterGrid required_letter=required_letter other_letters=other_letters />
-
             <div class="grid grid-cols-12">
                 <button
                     type="button"
@@ -168,6 +173,54 @@ fn Board(
                     submit
                 </button>
             </div>
+        </div>
+    }
+}
+
+fn use_validation_errors() -> (WriteSignal<Option<ValidationError>>, impl IntoView) {
+    let (error, set_error) = signal(None);
+    (
+        set_error,
+        view! {
+            <Show when=move || error.read().is_some() fallback=|| view! { <div></div> }>
+                <Error
+                    error=Signal::derive(move || error.get().unwrap())
+                    clear=move || set_error.set(None)
+                />
+            </Show>
+        },
+    )
+}
+
+#[component]
+fn Error(error: Signal<ValidationError>, clear: impl FnOnce() + Copy + 'static) -> impl IntoView {
+    let (visible, set_visible) = signal(true);
+    
+    let message = move || match *error.read() {
+        ValidationError::InvalidWord { candidate: _ } => "Bad letters",
+        ValidationError::TooShort { candidate: _ } => "Too short",
+        ValidationError::MissingRequiredLetter {
+            letter: _,
+            candidate: _,
+        } => "Missing center letter",
+        ValidationError::AlreadyGuessed => "Already found"
+    };
+    
+    // Fade out before clearing
+    set_timeout(
+        move || {
+            set_visible.set(false);
+            set_timeout(clear, Duration::from_millis(300));
+        }, 
+        Duration::from_millis(700)
+    );
+    
+    view! {
+        <div 
+            class="alert alert-error text-2xl flex flex-row transition-opacity duration-300"
+            style:opacity=move || if visible.get() { "1" } else { "0" }
+        >
+            <div class="flex-1">{message}</div>
         </div>
     }
 }
@@ -636,10 +689,12 @@ fn day_64() -> u64 {
     daydex
 }
 
+#[derive(Clone)]
 enum ValidationError {
     MissingRequiredLetter { letter: char, candidate: String },
     TooShort { candidate: String },
     InvalidWord { candidate: String },
+    AlreadyGuessed,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

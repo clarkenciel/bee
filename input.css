@@ -39,3 +39,8 @@
   font-size: calc(1.5rem * var(--hex-scale));
   @apply text-3xl sm:text-xl md:text-xl;
 }
+
+#board {
+  @apply grid;
+  grid-template-rows: 3.5rem auto auto auto;
+}
