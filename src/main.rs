@@ -158,10 +158,11 @@ fn Board(
                 <div class="col-span-2 grid justify-items-center">
                     <button
                         type="button"
+                        aria-label="shuffle letters"
                         class="btn btn-accent btn-circle"
                         on:click=shuffle_letters
                     >
-                        <ReloadIcon />
+                        <ShuffleIcon />
                     </button>
                 </div>
                 <button
@@ -215,7 +216,7 @@ fn use_validation_errors() -> (WriteSignal<Option<ValidationError>>, impl IntoVi
 }
 
 #[component]
-fn ReloadIcon() -> impl IntoView {
+fn ShuffleIcon() -> impl IntoView {
     view! {
         <svg
             width="24px"
@@ -225,6 +226,7 @@ fn ReloadIcon() -> impl IntoView {
             fill="none"
             xmlns="http://www.w3.org/2000/svg"
             color="#000000"
+            aria-label="shuffle icon"
         >
             <path
                 d="M22 6.99999C19 6.99999 13.5 6.99999 11.5 12.5C9.5 18 5 18 2 18"
@@ -490,12 +492,22 @@ fn LetterHex(mut class: String, letter: ReadSignal<Letter>, pos: HexPos) -> impl
 
     view! {
         <polygon
+            role="gridcell"
+            tabindex=0
+            aria-label=move || format!("letter {}", letter.read().0)
             points=points
             class=class
             on:click:target=move |e| {
                 e.prevent_default();
                 leptos::logging::log!("CLICKED LETTER {}", letter.read().0);
                 add_letter.write().push(letter.read().0)
+            }
+            on:keyup:target=move |e| {
+                e.prevent_default();
+                if e.key() == "Enter" {
+                    leptos::logging::log!("CLICKED LETTER {}", letter.read().0);
+                    add_letter.write().push(letter.read().0)
+                }
             }
         />
         <text
@@ -537,6 +549,8 @@ fn LetterGrid(
                 class="w-full h-auto hex-container"
                 viewBox="0 0 500 280"
                 preserveAspectRatio="xMidYMid meet"
+                aria-label="letter grid"
+                role="grid"
             >
                 <RequiredLetter letter=required_letter pos=HexPos::Center />
 
