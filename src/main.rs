@@ -324,7 +324,7 @@ fn GuessedWords(submitted: Signal<BTreeSet<String>>) -> impl IntoView {
                             next
                         </button>
                         <form method="dialog">
-                            <button type="submit" class="btn">
+                            <button type="submit" class="btn btn-primary">
                                 Close
                             </button>
                         </form>
@@ -350,44 +350,97 @@ fn Score(score: Signal<u32>, buckets: ScoreBuckets) -> impl IntoView {
     });
 
     view! {
-        <div class="grid grid-cols-12 items-center w-full">
-            <div aria-label="current level" class="font-bold col-span-3">
-                {current_threshold}
-            </div>
-            <div
-                class="col-span-9"
-                role="progressbar"
-                aria-valuenow=score
-                aria-valuemax=max
-                aria-label="score progress"
-            >
-                <div class="progress-segments">
-                    <For
-                        each=move || buckets.get()
-                        key=|(label, _)| label.clone()
-                        children=move |(label, score_threshold)| {
-                            let current_threshold = Signal::derive(move || {
-                                if label == current_threshold.get() {
-                                    Some(score.get())
-                                } else {
-                                    None
-                                }
-                            });
-                            let is_filled = move || score.get() >= score_threshold;
+        <div>
+            <div class="grid grid-cols-12 items-center w-full cursor-pointer" onclick="scoreDetails.showModal()">
+                <div aria-label="current level" class="font-bold col-span-3">
+                    {current_threshold}
+                </div>
+                <div
+                    class="col-span-9"
+                    role="progressbar"
+                    aria-valuenow=score
+                    aria-valuemax=max
+                    aria-label="score progress"
+                >
+                    <div class="progress-segments">
+                        <For
+                            each=move || buckets.get()
+                            key=|(label, _)| label.clone()
+                            children=move |(label, score_threshold)| {
+                                let current_threshold = Signal::derive(move || {
+                                    if label == current_threshold.get() {
+                                        Some(score.get())
+                                    } else {
+                                        None
+                                    }
+                                });
+                                let is_filled = move || score.get() >= score_threshold;
 
-                            view! {
-                                <div
-                                    class="segment"
-                                    class:filled=is_filled
-                                    class:current=move || { current_threshold.get().is_some() }
-                                >
-                                    {current_threshold}
-                                </div>
+                                view! {
+                                    <div
+                                        class="segment"
+                                        class:filled=is_filled
+                                        class:current=move || { current_threshold.get().is_some() }
+                                    >
+                                        {current_threshold}
+                                    </div>
+                                }
                             }
-                        }
-                    />
+                        />
+                    </div>
                 </div>
             </div>
+            <dialog id="scoreDetails" class="modal">
+                <section class="modal-box">
+                    <h1 class="text-3xl">Rankings</h1>
+                    <table class="table grid grid-cols-[1rm_auto_1vw_auto]">
+                        <thead class="font-bold text-sm">
+                            <tr>
+                                <th></th>
+                                <th>Rank</th>
+                                <th></th>
+                                <th>Minimum</th>
+                            </tr>
+                        </thead>
+
+                        <For
+                            each=move || buckets.get()
+                            key=|(label, _)| label.clone()
+                            children=move |(label, score_threshold)| {
+                                let (label, _) = signal(label);
+                                let current_threshold = Signal::derive(move || {
+                                    if *label.read() == current_threshold.get() {
+                                        Some(score.get())
+                                    } else {
+                                        None
+                                    }
+                                });
+
+                                view! {
+                                    <tr
+                                        class=(
+                                            ["font-bold"],
+                                            move || { current_threshold.get().is_some() },
+                                        )
+                                    >
+                                        <td>{current_threshold}</td>
+                                        <td>{label}</td>
+                                        <td></td>
+                                        <td>{score_threshold}</td>
+                                    </tr>
+                                }
+                            }
+                        />
+                    </table>
+                    <div class="modal-action">
+                        <form action="modal">
+                            <button type="submit" class="btn btn-primary">
+                                close
+                            </button>
+                        </form>
+                    </div>
+                </section>
+            </dialog>
         </div>
     }
 }
