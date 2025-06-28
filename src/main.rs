@@ -97,7 +97,7 @@ fn Board(
 
         let word = std::mem::take(&mut *set_word.write());
         if word.len() < 4 {
-            set_error.set(Some(ValidationError::TooShort { candidate: word }));
+            set_error.set(Some(ValidationError::TooShort));
             return;
         }
 
@@ -108,18 +108,23 @@ fn Board(
 
         leptos::logging::log!("Checking {}", word);
         if !word.contains(required_letter.read().0) {
-            *set_error.write() = Some(ValidationError::MissingRequiredLetter {
-                letter: required_letter.read().0,
-                candidate: word,
-            });
+            set_error.set(Some(ValidationError::MissingRequiredLetter));
+            return;
+        }
+
+        if word.chars().any(|c| {
+            !(required_letter.read().0 == c || other_letters.read().contains(&Letter::new(c)))
+        }) {
+            set_error.set(Some(ValidationError::BadLetters));
             return;
         }
 
         let mut candidate = Word::new(&word, false);
         if !valid_words.read().contains(&candidate) {
-            *set_error.write() = Some(ValidationError::InvalidWord { candidate: word });
+            set_error.set(Some(ValidationError::NotInList));
             return;
         }
+
         candidate.is_pangram = candidate.contains(&*required_letter.read())
             && other_letters.read().iter().all(|l| candidate.contains(l));
 
@@ -181,13 +186,11 @@ fn use_validation_errors() -> (WriteSignal<Option<ValidationError>>, impl IntoVi
     let (error, set_error) = signal(None);
     let message = move || {
         error.read().as_ref().map(|error| match error {
-            ValidationError::InvalidWord { candidate: _ } => "Bad letters",
-            ValidationError::TooShort { candidate: _ } => "Too short",
-            ValidationError::MissingRequiredLetter {
-                letter: _,
-                candidate: _,
-            } => "Missing center letter",
+            ValidationError::BadLetters => "Bad letters",
+            ValidationError::TooShort => "Too short",
+            ValidationError::MissingRequiredLetter => "Missing center letter",
             ValidationError::AlreadyGuessed => "Already found",
+            ValidationError::NotInList => "Not in word list",
         })
     };
     Effect::watch(
@@ -694,9 +697,10 @@ fn day_64() -> u64 {
 
 #[derive(Clone)]
 enum ValidationError {
-    MissingRequiredLetter { letter: char, candidate: String },
-    TooShort { candidate: String },
-    InvalidWord { candidate: String },
+    MissingRequiredLetter,
+    TooShort,
+    BadLetters,
+    NotInList,
     AlreadyGuessed,
 }
 
