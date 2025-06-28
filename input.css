@@ -28,12 +28,12 @@
 }
 
 .letter.required {
-  @apply hover:fill-accent focus:fill-accent;
+  @apply hover:fill-accent focus:fill-accent focus:outline-0;
   @apply fill-warning;
 }
 
 .letter.other {
-  @apply hover:fill-accent focus:fill-accent;
+  @apply hover:fill-accent focus:fill-accent focus:outline-0;
   @apply fill-info;
 }
 
