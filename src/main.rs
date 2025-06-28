@@ -597,7 +597,8 @@ impl PuzzleConfig {
             other_letters.clear();
             available_letters.clear();
             all_letters.clear();
-            all_letters.extend('a'..='z');
+            all_letters.extend('a'..'s');
+            all_letters.extend('t'..'z');
 
             let required_idx = rng.random_range(0..all_letters.len());
             required_letter = all_letters[required_idx];
