@@ -32,7 +32,7 @@ fn App() -> impl IntoView {
     >(format!("{}/score", storage_key));
     provide_context((score, set_score));
     let (submitted, set_submitted, _) = leptos_use::storage::use_local_storage::<
-        BTreeSet<_>,
+        Vec<_>,
         codee::string::JsonSerdeCodec,
     >(format!("{}/submitted", storage_key));
     provide_context((submitted, set_submitted));
@@ -51,7 +51,7 @@ fn App() -> impl IntoView {
                     <Score score=score buckets=score_buckets />
                 </div>
 
-                <GuessedWords submitted=submitted />
+                <GuessedWords submitted />
             </div>
 
             <div class="divider divider-secondary"></div>
@@ -89,7 +89,7 @@ fn Board(
     let (_score, set_score) =
         use_context::<(Signal<u32>, WriteSignal<u32>)>().expect("No writable score provided");
     let (submitted, set_submitted) =
-        use_context::<(Signal<BTreeSet<String>>, WriteSignal<BTreeSet<String>>)>()
+        use_context::<(Signal<Vec<String>>, WriteSignal<Vec<String>>)>()
             .expect("No writable submittion list provided");
     let (set_error, error) = use_validation_errors();
     let submit = move |e: web_sys::SubmitEvent| {
@@ -129,7 +129,7 @@ fn Board(
             && other_letters.read().iter().all(|l| candidate.contains(l));
 
         *set_score.write() += candidate.score();
-        set_submitted.write().insert(word);
+        set_submitted.write().push(word);
     };
 
     let shuffle_letters = move |_| {
@@ -272,10 +272,12 @@ const PAGE_SIZE: usize = 10;
 const PAGE_SIZE: usize = 1;
 
 #[component]
-fn GuessedWords(submitted: Signal<BTreeSet<String>>) -> impl IntoView {
+fn GuessedWords(#[prop(into)] submitted: Signal<Vec<String>>) -> impl IntoView {
     let (current_page, set_current_page) = signal(0);
+    let submitted_alphabetically =
+        Signal::derive(move || submitted.get().into_iter().collect::<BTreeSet<_>>());
     let pages = move || {
-        submitted
+        submitted_alphabetically
             .read()
             .iter()
             .fold(vec![vec![]], |mut pages, word| {
@@ -289,10 +291,29 @@ fn GuessedWords(submitted: Signal<BTreeSet<String>>) -> impl IntoView {
             })
     };
 
+    let latest_words = move || {
+        submitted
+            .read()
+            .iter()
+            .rev()
+            .take(20)
+            .cloned()
+            .collect::<Vec<String>>()
+    };
+
     view! {
         <div class="w-full">
-            <button type="button" class="btn btn-ghost w-full" onclick="guessed.showModal()">
-                Guessed words
+            <button
+                type="button"
+                class="btn btn-soft w-full grid grid-cols-6 gap-2"
+                onclick="guessed.showModal()"
+            >
+                <ul class="col-span-5 flex flex-row gap-4 overflow-y-hidden">
+                    <For each=latest_words key=|s| s.clone() let(word)>
+                        <li>{word}</li>
+                    </For>
+                </ul>
+                <span class="col-span-1">. . .</span>
             </button>
             <dialog id="guessed" class="modal">
                 <section class="modal-box">
@@ -436,7 +457,7 @@ fn Score(score: Signal<u32>, buckets: ScoreBuckets) -> impl IntoView {
                         />
                     </table>
                     <div class="modal-action">
-                        <form action="modal">
+                        <form method="dialog">
                             <button type="submit" class="btn btn-primary">
                                 close
                             </button>
