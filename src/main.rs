@@ -45,7 +45,7 @@ fn App() -> impl IntoView {
     } = PuzzleConfig::load_from_storage(&storage_key, &storage);
 
     view! {
-        <div class="container p-4">
+        <div class="container p-4 h-full">
             <div class="container flex flex-col w-full justify-between gap-1">
                 <div class="self-start w-full">
                     <Score score=score buckets=score_buckets />
@@ -139,8 +139,9 @@ fn Board(
     };
 
     view! {
-        <div id="board">
-            {error} <form id="word-form" on:submit=submit class="w-full">
+        <div id="board" class="h-full">
+            {error}
+            <form id="word-form" on:submit=submit class="w-full h-auto">
                 <input
                     type="text"
                     class="input input-ghost input-xl w-full text-center"
@@ -149,7 +150,8 @@ fn Board(
                     minlength=4
                     autofocus
                 />
-            </form> <LetterGrid required_letter=required_letter other_letters=other_letters />
+            </form>
+            <LetterGrid required_letter=required_letter other_letters=other_letters />
             <div class="grid grid-cols-12">
                 <button
                     type="button"
@@ -351,7 +353,10 @@ fn Score(score: Signal<u32>, buckets: ScoreBuckets) -> impl IntoView {
 
     view! {
         <div>
-            <div class="grid grid-cols-12 items-center w-full cursor-pointer" onclick="scoreDetails.showModal()">
+            <div
+                class="grid grid-cols-12 items-center w-full cursor-pointer"
+                onclick="scoreDetails.showModal()"
+            >
                 <div aria-label="current level" class="font-bold col-span-3">
                     {current_threshold}
                 </div>
@@ -417,12 +422,10 @@ fn Score(score: Signal<u32>, buckets: ScoreBuckets) -> impl IntoView {
                                 });
 
                                 view! {
-                                    <tr
-                                        class=(
-                                            ["font-bold"],
-                                            move || { current_threshold.get().is_some() },
-                                        )
-                                    >
+                                    <tr class=(
+                                        ["font-bold"],
+                                        move || { current_threshold.get().is_some() },
+                                    )>
                                         <td>{current_threshold}</td>
                                         <td>{label}</td>
                                         <td></td>
@@ -472,15 +475,16 @@ impl HexPos {
 /// Assumes a 500x400 inverted-y "canvas"
 impl From<&HexPos> for (f32, f32) {
     fn from(value: &HexPos) -> Self {
-        match value {
-            HexPos::Center => (250.0, 140.0),
-            HexPos::North => (250.0, 60.0),
-            HexPos::South => (250.0, 220.0),
-            HexPos::NorthEast => (319.28, 100.0),
-            HexPos::SouthEast => (319.28, 180.0),
-            HexPos::NorthWest => (180.72, 100.0),
-            HexPos::SouthWest => (180.72, 180.0),
-        }
+        (60.0, 57.0)
+        // match value {
+        //     HexPos::Center => (250.0, 140.0),
+        //     HexPos::North => (250.0, 60.0),
+        //     HexPos::South => (250.0, 220.0),
+        //     HexPos::NorthEast => (319.28, 100.0),
+        //     HexPos::SouthEast => (319.28, 180.0),
+        //     HexPos::NorthWest => (180.72, 100.0),
+        //     HexPos::SouthWest => (180.72, 180.0),
+        // }
     }
 }
 
@@ -528,31 +532,15 @@ fn OtherLetter(letter: ReadSignal<Letter>, pos: HexPos) -> impl IntoView {
 }
 
 #[component]
-fn LetterHex(mut class: String, letter: ReadSignal<Letter>, pos: HexPos) -> impl IntoView {
+fn LetterHex(class: String, letter: ReadSignal<Letter>, pos: HexPos) -> impl IntoView {
     let add_letter = use_context::<WriteSignal<String>>().expect("No word context provided");
 
-    let (cx, cy) = pos.center();
-    let points = pos
-        .points()
-        .into_iter()
-        .try_fold(
-            String::new(),
-            |mut s, (px, py)| -> Result<String, std::fmt::Error> {
-                write!(&mut s, "{},{} ", px, py)?;
-                Ok(s)
-            },
-        )
-        .expect("Hex pointstring build failed!");
-
-    let _ = write!(&mut class, " {}", "cursor-pointer stroke-neutral stroke-2");
-
     view! {
-        <polygon
-            role="gridcell"
-            tabindex=0
-            aria-label=move || format!("letter {}", letter.read().0)
-            points=points
+        <button
+            type="button"
             class=class
+            role="gridcell"
+            aria-label=move || format!("letter {}", letter.read().0)
             on:click:target=move |e| {
                 e.prevent_default();
                 leptos::logging::log!("CLICKED LETTER {}", letter.read().0);
@@ -565,15 +553,14 @@ fn LetterHex(mut class: String, letter: ReadSignal<Letter>, pos: HexPos) -> impl
                     add_letter.write().push(letter.read().0)
                 }
             }
-        />
-        <text
-            class="hex-text font-extrabold uppercase cursor-pointer dark:text-base-content dark:hover:text-accent-content"
-            x=cx - 10.0
-            y=cy + 10.0
-            pointer-events="none"
         >
-            {move || { letter.read().0 }}
-        </text>
+            <svg viewBox="0 0 120 103.92304845413263">
+                <polygon points="0,51.96152422706631 30,0 90,0 120,51.96152422706631 90,103.92304845413263 30,103.92304845413263" />
+                <text class="hex-text" x="50%" y="50%" dy="0.1em">
+                    {move || { letter.read().0 }}
+                </text>
+            </svg>
+        </button>
     }
 }
 
@@ -600,21 +587,13 @@ fn LetterGrid(
     };
 
     view! {
-        <div class="h-[300px] sm:h-auto overflow-hidden flex items-center justify-center">
-            <svg
-                class="w-full h-auto hex-container"
-                viewBox="0 0 500 280"
-                preserveAspectRatio="xMidYMid meet"
-                aria-label="letter grid"
-                role="grid"
-            >
+            <div class="hex-container" aria-label="letter grid" role="grid">
                 <RequiredLetter letter=required_letter pos=HexPos::Center />
 
                 <For each=move || other_letters() key=|hex| hex.clone() let((letter, pos))>
                     <OtherLetter letter=signal(letter).0 pos=pos />
                 </For>
-            </svg>
-        </div>
+            </div>
     }
 }
 

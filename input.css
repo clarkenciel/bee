@@ -2,6 +2,10 @@
 @source "./src/**/*.rs";
 @plugin "daisyui";
 
+body {
+  height: calc(1vh * 100);
+}
+
 .required-letter {
   @apply btn-warning;
 }
@@ -23,26 +27,90 @@
 }
 
 .hex-container {
-  --hex-scale: 1;
-  @apply scale-150 sm:scale-100 md:scale-100;
+  @apply h-80 w-90 justify-self-center;
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-rows: 1fr 1fr 1fr 1fr 1fr 1fr;
+  gap: 7px -0px;
+  /* gap: -1fr -1fr; */
+
+  grid-template-areas:
+    ". one ."
+    "six one two"
+    "six center two"
+    "five center three"
+    "five four three"
+    ". four .";
+}
+
+.letter {
+  @apply cursor-pointer;
+
+  polygon {
+    @apply stroke-neutral stroke-2 hover:fill-accent focus:fill-accent focus:outline-0;
+    pointer-events: none;
+  }
 }
 
 .letter.required {
-  @apply hover:fill-accent focus:fill-accent focus:outline-0;
-  @apply fill-warning;
+  grid-area: center;
+  polygon {
+    @apply fill-warning;
+  }
 }
 
 .letter.other {
-  @apply hover:fill-accent focus:fill-accent focus:outline-0;
-  @apply fill-info;
+  polygon {
+    @apply fill-info;
+  }
+}
+
+.letter.other:nth-of-type(2) {
+  grid-area: one;
+}
+
+.letter.other:nth-of-type(3) {
+  grid-area: two;
+  svg {
+    transform: translateX(-22%);
+  }
+}
+
+.letter.other:nth-of-type(4) {
+  grid-area: three;
+
+  svg {
+    transform: translateX(-22%);
+  }
+}
+
+.letter.other:nth-of-type(5) {
+  grid-area: four;
+}
+
+.letter.other:nth-of-type(6) {
+  grid-area: five;
+
+  svg {
+    transform: translateX(22%);
+  }
+}
+
+.letter.other:nth-of-type(7) {
+  grid-area: six;
+
+  svg {
+    transform: translateX(22%);
+  }
 }
 
 .hex-text {
-  font-size: calc(1.5rem * var(--hex-scale));
-  @apply text-3xl sm:text-xl md:text-xl;
+  @apply text-3xl font-extrabold uppercase cursor-pointer dark:text-base-content dark:hover:text-accent-content;
+  dominant-baseline: middle;
+  text-anchor: middle;
 }
 
 #board {
   @apply grid;
-  grid-template-rows: 3.5rem auto auto auto;
+  grid-template-rows: 3.5rem 3.5rem 45% auto;
 }
