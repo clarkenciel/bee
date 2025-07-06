@@ -139,7 +139,7 @@ fn Board(
     };
 
     view! {
-        <div id="board" class="h-full">
+        <div id="board">
             {error}
             <form id="word-form" on:submit=submit class="w-full h-auto">
                 <input
@@ -148,11 +148,10 @@ fn Board(
                     bind:value=(word, set_word)
                     aria-label="word"
                     minlength=4
-                    autofocus
                 />
             </form>
             <LetterGrid required_letter=required_letter other_letters=other_letters />
-            <div class="grid grid-cols-12">
+            <div class="grid grid-cols-12 button-container">
                 <button
                     type="button"
                     class="btn btn-warning col-start-2 col-span-4"
@@ -302,10 +301,10 @@ fn GuessedWords(#[prop(into)] submitted: Signal<Vec<String>>) -> impl IntoView {
     };
 
     view! {
-        <div class="w-full">
+        <div>
             <button
                 type="button"
-                class="btn btn-soft w-full grid grid-cols-6 gap-2"
+                class="btn btn-soft grid grid-cols-6 gap-2 w-full"
                 onclick="guessed.showModal()"
             >
                 <ul class="col-span-5 flex flex-row gap-4 overflow-y-hidden">
