@@ -1,16 +1,11 @@
 use std::{
     collections::{BTreeSet, HashSet},
-    f32::consts::PI,
-    fmt::Write as _,
     time::Duration,
 };
 
-use codee::{Decoder, HybridEncoder};
 use leptos::prelude::*;
-use rand::{Rng, SeedableRng};
-use serde::{Deserialize, Serialize};
 
-const WORDS: &str = include_str!("../assets/words.txt");
+use puzzle_config::{Word,Letter,PuzzleConfig};
 
 fn main() {
     console_error_panic_hook::set_once();
@@ -42,7 +37,7 @@ fn App() -> impl IntoView {
         required_letter,
         other_letters,
         valid_words,
-    } = PuzzleConfig::load_from_storage(&storage_key, &storage);
+    } = load_from_storage(&storage_key, &storage);
 
     view! {
         <div class="container p-4 h-full">
@@ -533,125 +528,6 @@ fn LetterGrid(
     }
 }
 
-type ScoreBuckets = [(String, u32); 9];
-
-#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
-struct PuzzleConfig {
-    score_buckets: ScoreBuckets,
-    required_letter: Letter,
-    other_letters: Vec<Letter>,
-    valid_words: HashSet<Word>,
-}
-
-impl Default for PuzzleConfig {
-    fn default() -> Self {
-        Self::from_wordstr(&WORDS)
-    }
-}
-
-impl PuzzleConfig {
-    fn from_wordstr(word_str: &str) -> Self {
-        let daydex = day_64();
-
-        let mut rng = rand::rngs::SmallRng::seed_from_u64(daydex);
-        let mut valid_words = HashSet::new();
-        let mut required_letter = '\0';
-        let mut other_letters = Vec::with_capacity(6);
-        let mut all_letters = Vec::with_capacity(26);
-        let mut available_letters = HashSet::with_capacity(7);
-        let mut word_letters = HashSet::with_capacity(64);
-        while !valid_words.iter().any(|w: &Word| w.is_pangram) {
-            valid_words.clear();
-            other_letters.clear();
-            available_letters.clear();
-            all_letters.clear();
-            all_letters.extend('a'..'s');
-            all_letters.extend('t'..'z');
-
-            let required_idx = rng.random_range(0..all_letters.len());
-            required_letter = all_letters[required_idx];
-            available_letters.insert(required_letter);
-            all_letters.remove(required_idx);
-
-            for _ in 0..6 {
-                let candidate_idx = rng.random_range(0..all_letters.len());
-                let candidate = all_letters[candidate_idx];
-                other_letters.push(candidate);
-                available_letters.insert(candidate);
-                all_letters.remove(candidate_idx);
-            }
-
-            valid_words.extend(word_str.lines().filter_map(|l| {
-                word_letters.extend(l.chars());
-                let maybe_word = match (
-                    word_letters.is_subset(&available_letters),
-                    available_letters.is_subset(&word_letters),
-                ) {
-                    (true, true) => Some(Word::new(l, true)),
-                    (false, _) => None,
-                    _ => Some(Word::new(l, false)),
-                };
-                word_letters.clear();
-                maybe_word
-            }));
-        }
-
-        let max_score = valid_words.iter().map(|w| w.score()).sum::<u32>() as f32;
-
-        let score_buckets = [
-            ("Beginner".to_owned(), (max_score * 0.0).trunc() as u32),
-            ("Good Start".to_owned(), (max_score * 0.02).trunc() as u32),
-            ("Moving Up".to_owned(), (max_score * 0.05).trunc() as u32),
-            ("Good".to_owned(), (max_score * 0.08).trunc() as u32),
-            ("Solid".to_owned(), (max_score * 0.15).trunc() as u32),
-            ("Nice".to_owned(), (max_score * 0.25).trunc() as u32),
-            ("Great".to_owned(), (max_score * 0.4).trunc() as u32),
-            ("Amazing".to_owned(), (max_score * 0.5).trunc() as u32),
-            ("Genius".to_owned(), (max_score * 0.7).trunc() as u32),
-        ];
-
-        Self {
-            score_buckets,
-            required_letter: Letter::new(required_letter),
-            valid_words,
-            other_letters: other_letters.into_iter().map(Letter::new).collect(),
-        }
-    }
-
-    fn load_from_storage(storage_key: &str, storage: &web_sys::Storage) -> Self {
-        let data_key = format!("{}/data", storage_key);
-        match storage.get(&data_key) {
-            Ok(Some(data)) => match codee::string::JsonSerdeCodec::decode(&data) {
-                Ok(data) => data,
-                Err(e) => {
-                    leptos::logging::warn!("Stored data decoding failed: {}", e);
-                    let new_data = PuzzleConfig::default();
-                    storage
-                        .set(
-                            &data_key,
-                            &codee::string::JsonSerdeCodec::encode_str(&new_data)
-                                .expect("Failed to encode new data"),
-                        )
-                        .expect("Failed to store new data");
-                    new_data
-                }
-            },
-            Ok(None) => {
-                let new_data = PuzzleConfig::default();
-                storage
-                    .set(
-                        &data_key,
-                        &codee::string::JsonSerdeCodec::encode_str(&new_data)
-                            .expect("Failed to encode new data"),
-                    )
-                    .expect("Failed to store new data");
-                new_data
-            }
-            Err(e) => panic!("Storage access failed {:?}", e),
-        }
-    }
-}
-
 fn day_64() -> u64 {
     let datetime = js_sys::Date::new_0();
     datetime.set_hours(0);
@@ -673,83 +549,36 @@ enum ValidationError {
     AlreadyGuessed,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct Word {
-    word: String,
-    chars: HashSet<char>,
-    is_pangram: bool,
-}
 
-impl std::hash::Hash for Word {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.word.hash(state)
-    }
-}
-
-impl std::cmp::PartialEq for Word {
-    fn eq(&self, other: &Self) -> bool {
-        self.word == other.word
-    }
-}
-
-impl std::cmp::Eq for Word {}
-
-impl Word {
-    fn new(word: &str, is_pangram: bool) -> Self {
-        Self {
-            word: word.to_owned(),
-            is_pangram,
-            chars: word.chars().collect(),
+async fn load_from_storage(storage_key: &str, storage: &web_sys::Storage) -> PuzzleConfig {
+    let data_key = format!("{}/data", storage_key);
+    match storage.get(&data_key) {
+        Ok(Some(data)) => match codee::string::JsonSerdeCodec::decode(&data) {
+            Ok(data) => data,
+            Err(e) => {
+                leptos::logging::warn!("Stored data decoding failed: {}", e);
+                let new_data = PuzzleConfig::default();
+                storage
+                    .set(
+                        &data_key,
+                        &codee::string::JsonSerdeCodec::encode_str(&new_data)
+                            .expect("Failed to encode new data"),
+                    )
+                    .expect("Failed to store new data");
+                new_data
+            }
+        },
+        Ok(None) => {
+            let new_data = PuzzleConfig::default();
+            storage
+                .set(
+                    &data_key,
+                    &codee::string::JsonSerdeCodec::encode_str(&new_data)
+                        .expect("Failed to encode new data"),
+                )
+                .expect("Failed to store new data");
+            new_data
         }
-    }
-}
-
-impl Word {
-    fn score(&self) -> u32 {
-        if self.word.len() == 4 {
-            1
-        } else {
-            let pangram_boost = if self.is_pangram { 7 } else { 0 };
-            self.word.len() as u32 + pangram_boost
-        }
-    }
-
-    fn is_superset(&self, other: &Word) -> bool {
-        self.chars.is_superset(&other.chars)
-    }
-
-    fn get(&self, idx: usize) -> Option<Letter> {
-        self.word
-            .get(idx..=idx)
-            .and_then(|s| s.chars().nth(0))
-            .map(Letter::new)
-    }
-
-    fn len(&self) -> usize {
-        self.word.len()
-    }
-
-    fn letters(&self) -> HashSet<Letter> {
-        self.word
-            .split("")
-            .filter_map(|s| s.chars().nth(0))
-            .map(Letter::new)
-            .collect()
-    }
-
-    fn contains(&self, letter: &Letter) -> bool {
-        self.word
-            .split("")
-            .filter_map(|s| s.chars().nth(0))
-            .any(|l| l == letter.0)
-    }
-}
-
-#[derive(Debug, Clone, Eq, PartialEq, Hash, Serialize, Deserialize)]
-struct Letter(char);
-
-impl Letter {
-    fn new(s: char) -> Self {
-        Self(s)
+        Err(e) => panic!("Storage access failed {:?}", e),
     }
 }

@@ -1,0 +1,5 @@
+#!/usr/bin/env sh
+
+docker build -f Dockerfile -t bee:latest .
+docker image save bee:latest | ssh dokku@dokku.me 'dokku git:load-image bee bee:latest'
+ssh dokku@dokku.me 'dokku ps:rebuild bee'
