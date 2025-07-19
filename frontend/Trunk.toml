@@ -9,3 +9,4 @@ backend = "http://localhost:3000/puzzle/daily/config"
 
 [build]
 public_url = "/assets/"
+minify = "on_release"

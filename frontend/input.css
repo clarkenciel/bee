@@ -41,49 +41,79 @@ body {
     "five center three"
     "five four three"
     ". four .";
+
+  --border-gradient-size: 100px;
+  --border-gradient-light: var(--color-warning);
+  --border-gradient-dark: var(--color-base-100);
 }
 
 .letter {
-  @apply cursor-pointer uppercase border border-base-100;
-  @apply text-2xl font-extrabold uppercase cursor-pointer dark:text-info-content dark:hover:text-accent-content;
+  @apply cursor-pointer uppercase; 
+  @apply text-2xl font-extrabold uppercase cursor-pointer;
+
+  border: 3px solid transparent;
+  background-image: 
+    linear-gradient(var(--letter-bg-color), var(--letter-bg-color)), 
+    radial-gradient(
+      circle var(--border-gradient-size) 
+      at var(--border-gradient-x, 500%) var(--border-gradient-y, 500%),
+      var(--border-gradient-light), var(--border-gradient-dark)
+    );
+  background-clip: padding-box, border-box;
+  background-origin: border-box;
 }
 
 .letter.required {
-  @apply bg-warning;
   grid-area: center;
+  
+  
+  --letter-bg-color: var(--color-warning);
 }
 
 .letter.other {
+  --letter-bg-color: var(--color-info);
 }
 
 .letter.other:nth-of-type(2) {
-  @apply bg-info rounded-t-2xl;
+  @apply rounded-t-4xl;
   grid-area: one;
+  
+  
 }
 
 .letter.other:nth-of-type(3) {
+  @apply rounded-tr-4xl;
   grid-area: two;
-  @apply bg-info rounded-tr-2xl;
+  
+  
 }
 
 .letter.other:nth-of-type(4) {
-  @apply bg-info rounded-br-2xl;
+  @apply rounded-br-4xl;
   grid-area: three;
+  
+  
 }
 
 .letter.other:nth-of-type(5) {
-  @apply bg-info rounded-b-2xl;
+  @apply rounded-b-4xl;
   grid-area: four;
+  
+  
 }
 
 .letter.other:nth-of-type(6) {
-  @apply bg-info rounded-bl-2xl;
+  @apply rounded-bl-4xl;
   grid-area: five;
+  
+  
 }
 
 .letter.other:nth-of-type(7) {
-  @apply bg-info rounded-tl-2xl;
+  @apply rounded-tl-4xl;
   grid-area: six;
+  
+  
 }
 
 #board {

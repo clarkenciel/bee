@@ -526,8 +526,23 @@ fn LetterGrid(
     required_letter: ReadSignal<Letter>,
     other_letters: ReadSignal<Vec<Letter>>,
 ) -> impl IntoView {
+    let board_ref = NodeRef::<leptos::html::Div>::new();
+    
+    Effect::new(move |_| {
+        if let Some(board) = board_ref.get() {
+            leptos::logging::log!("{:?}", board);
+            let init = &web_sys::EventInit::new();
+            init.set_bubbles(true);
+            board.dispatch_event(
+                &web_sys::Event::new_with_event_init_dict(
+                    "bee:board-loaded",
+                    &init,
+                ).unwrap()).unwrap();
+        }
+    });
+
     view! {
-        <div class="hex-container" aria-label="letter grid" role="grid">
+        <div class="hex-container" aria-label="letter grid" role="grid" node_ref=board_ref >
             <RequiredLetter letter=required_letter />
 
             <For each=move || other_letters.get() key=|hex| hex.clone() let(letter)>
