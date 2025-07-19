@@ -1,7 +1,7 @@
-target/release/server:
+target/release/server: server/src/*.rs Cargo.*
 	cargo build -p server --release
 
-frontend/dist:
+frontend/dist: frontend/src/*.rs frontend/input.css frontend/Trunk.toml frontend/assets/* Cargo.*
 	cd frontend && trunk build --release
 
 image: target/release/server frontend/dist
