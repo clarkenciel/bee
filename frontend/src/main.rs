@@ -516,12 +516,7 @@ fn LetterHex(class: String, letter: ReadSignal<Letter>) -> impl IntoView {
                 }
             }
         >
-            <svg viewBox="0 0 120 103.92304845413263">
-                <polygon points="0,51.96152422706631 30,0 90,0 120,51.96152422706631 90,103.92304845413263 30,103.92304845413263" />
-                <text class="hex-text" x="50%" y="50%" dy="0.1em">
-                    {move || { letter.read().0 }}
-                </text>
-            </svg>
+            {move || letter.read().0}
         </button>
     }
 }

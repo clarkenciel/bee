@@ -44,78 +44,46 @@ body {
 }
 
 .letter {
-  @apply cursor-pointer;
-
-  polygon {
-    @apply stroke-neutral stroke-2 hover:fill-accent focus:fill-accent focus:outline-0;
-    pointer-events: none;
-  }
+  @apply cursor-pointer uppercase border border-base-100;
+  @apply text-2xl font-extrabold uppercase cursor-pointer dark:text-info-content dark:hover:text-accent-content;
 }
 
 .letter.required {
+  @apply bg-warning;
   grid-area: center;
-  polygon {
-    @apply fill-warning;
-  }
 }
 
 .letter.other {
-  polygon {
-    @apply fill-info;
-  }
 }
 
 .letter.other:nth-of-type(2) {
+  @apply bg-info rounded-t-2xl;
   grid-area: one;
-
-  svg {
-    transform: translate(0, 12px);
-  }
 }
 
 .letter.other:nth-of-type(3) {
   grid-area: two;
-  svg {
-    transform: translate(-23px, 6px);
-  }
+  @apply bg-info rounded-tr-2xl;
 }
 
 .letter.other:nth-of-type(4) {
+  @apply bg-info rounded-br-2xl;
   grid-area: three;
-
-  svg {
-    transform: translate(-23px, -5px);
-  }
 }
 
 .letter.other:nth-of-type(5) {
+  @apply bg-info rounded-b-2xl;
   grid-area: four;
-
-  svg {
-    transform: translate(0, -11px);
-  }
 }
 
 .letter.other:nth-of-type(6) {
+  @apply bg-info rounded-bl-2xl;
   grid-area: five;
-
-  svg {
-    transform: translate(22px, -5px);
-  }
 }
 
 .letter.other:nth-of-type(7) {
+  @apply bg-info rounded-tl-2xl;
   grid-area: six;
-
-  svg {
-    transform: translate(22px, 6px);
-  }
-}
-
-.hex-text {
-  @apply text-3xl font-extrabold uppercase cursor-pointer dark:text-base-content dark:hover:text-accent-content;
-  dominant-baseline: middle;
-  text-anchor: middle;
 }
 
 #board {
