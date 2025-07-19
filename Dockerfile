@@ -1,47 +1,28 @@
-# Stage 1: Build environment
-FROM rust:1.87.0-bookworm AS rust-base
+FROM debian:bookworm-slim AS tini
 
-RUN rustup target add wasm32-unknown-unknown
+RUN apt update && apt install -y curl
 
-FROM rust-base AS builder
+WORKDIR /tini
 
-# Install Node.js and pnpm for frontend dependencies
-RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
-    apt-get install -y nodejs && \
-    npm install -g pnpm
+# Add Tini
+ENV TINI_VERSION=v0.19.0
+RUN curl -L -o ./tini \
+  "https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini-amd64" \
+  && chmod +x ./tini
 
-# Install trunk from pre-built binary (faster and uses less memory)
-RUN curl -L https://github.com/trunk-rs/trunk/releases/download/v0.21.3/trunk-x86_64-unknown-linux-gnu.tar.gz | tar -xz -C /usr/local/bin
+FROM debian:bookworm-slim
 
-# Set working directory
-WORKDIR /app
+RUN \
+  groupadd --gid 10001 --system bee && \
+  useradd --uid 10001 -d /home/bee -b /home -g bee --system --create-home bee
 
-# Copy package files and install Node dependencies first (for better caching)
-COPY package.json pnpm-lock.yaml* ./
-RUN pnpm install
+WORKDIR /home/bee
 
-# Copy Rust project files
-COPY Cargo.toml Cargo.lock ./
-COPY src ./src
-COPY index.html ./
-COPY Trunk.toml ./
-COPY input.css ./
-COPY assets ./assets
+COPY --chown=bee: --chmod=0100 --from=tini /tini/tini ./tini
+COPY --chown=bee: --chmod=0400 ./frontend/dist/ ./dist
+COPY --chown=bee: --chmod=0100 ./target/release/server ./server
 
-# Build the application in release mode
-RUN trunk build --release
+USER bee
 
-# Stage 2: Production server with NGINX
-FROM nginx:bookworm
-
-# Copy the built assets from the builder stage
-COPY --from=builder /app/dist /usr/share/nginx/html
-
-# Copy custom nginx configuration
-COPY nginx.conf /etc/nginx/nginx.conf
-
-# Expose port 80
-EXPOSE 80
-
-# Start nginx
-CMD ["nginx", "-g", "daemon off;"]
+ENTRYPOINT ["./tini", "--", "./server"]
+CMD []

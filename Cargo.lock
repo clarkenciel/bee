@@ -186,22 +186,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "72b3254f16251a8381aa12e40e3c4d2f0199f8c6508fbecb9d91f575e0fbb8c6"
 
 [[package]]
-name = "bee"
-version = "0.1.0"
-dependencies = [
- "codee",
- "console_error_panic_hook",
- "js-sys",
- "leptos",
- "leptos-use",
- "puzzle-config",
- "rand",
- "reactive_stores",
- "serde",
- "web-sys",
-]
-
-[[package]]
 name = "bitflags"
 version = "2.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -512,6 +496,24 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e13624c2627564efccf4934284bdd98cbaa14e79b0b5a141218e507b3a823456"
 dependencies = [
  "percent-encoding",
+]
+
+[[package]]
+name = "frontend"
+version = "0.1.0"
+dependencies = [
+ "codee",
+ "console_error_panic_hook",
+ "gloo-net",
+ "js-sys",
+ "leptos",
+ "leptos-use",
+ "puzzle-config",
+ "rand",
+ "reactive_stores",
+ "serde",
+ "serde_json",
+ "web-sys",
 ]
 
 [[package]]

@@ -3,3 +3,6 @@ port = 8080
 
 [tools]
 tailwindcss = "4.0.17"
+
+[[proxy]]
+backend = "http://localhost:3000/puzzle/daily/config"

@@ -4,8 +4,9 @@ use std::{
 };
 
 use leptos::prelude::*;
+use rand::SeedableRng;
 
-use puzzle_config::{Word,Letter,PuzzleConfig};
+use puzzle_config::{Letter, PuzzleConfig, ScoreBuckets, Word};
 
 fn main() {
     console_error_panic_hook::set_once();
@@ -14,11 +15,6 @@ fn main() {
 
 #[component]
 fn App() -> impl IntoView {
-    let storage = web_sys::window()
-        .expect("Failed to get window")
-        .local_storage()
-        .expect("Failed to get local storage")
-        .expect("no local storage found");
     let storage_key = day_64().to_string();
 
     let (score, set_score, _) = leptos_use::storage::use_local_storage::<
@@ -32,31 +28,49 @@ fn App() -> impl IntoView {
     >(format!("{}/submitted", storage_key));
     provide_context((submitted, set_submitted));
 
-    let PuzzleConfig {
-        score_buckets,
-        required_letter,
-        other_letters,
-        valid_words,
-    } = load_from_storage(&storage_key, &storage);
+    let config = LocalResource::new(move || load());
 
     view! {
-        <div class="container p-4 h-full">
-            <div class="container flex flex-col w-full justify-between gap-1">
-                <div class="self-start w-full">
-                    <Score score=score buckets=score_buckets />
+        <Suspense
+            fallback=move || view! { <p>"Loading ..."</p> }
+        >
+        {move || Suspend::new(async move {
+            match config.await {
+                Ok(PuzzleConfig {
+                score_buckets,
+                required_letter,
+                other_letters,
+                valid_words,
+            }) =>
+            leptos::either::Either::Left(view! {
+            <div class="container p-4 h-full">
+                <div class="container flex flex-col w-full justify-between gap-1">
+                    <div class="self-start w-full">
+                        <Score score=score buckets=score_buckets />
+                    </div>
+
+                    <GuessedWords submitted />
                 </div>
 
-                <GuessedWords submitted />
+                <div class="divider divider-secondary"></div>
+
+                <Board
+                    required_letter=required_letter
+                    other_letters=other_letters
+                    valid_words=valid_words
+                />
             </div>
-
-            <div class="divider divider-secondary"></div>
-
-            <Board
-                required_letter=required_letter
-                other_letters=other_letters
-                valid_words=valid_words
-            />
-        </div>
+            }),
+            Err(AppError::ConfigLoadError(e)) => leptos::either::Either::Right( view! {
+                <div>
+                    <h1>Oopsie!</h1>
+                    <p>{e}</p>
+                    </div>
+            })
+        }
+                                         })
+        }
+        </Suspense>
     }
 }
 
@@ -549,36 +563,93 @@ enum ValidationError {
     AlreadyGuessed,
 }
 
-
-async fn load_from_storage(storage_key: &str, storage: &web_sys::Storage) -> PuzzleConfig {
-    let data_key = format!("{}/data", storage_key);
-    match storage.get(&data_key) {
-        Ok(Some(data)) => match codee::string::JsonSerdeCodec::decode(&data) {
-            Ok(data) => data,
-            Err(e) => {
-                leptos::logging::warn!("Stored data decoding failed: {}", e);
-                let new_data = PuzzleConfig::default();
-                storage
-                    .set(
-                        &data_key,
-                        &codee::string::JsonSerdeCodec::encode_str(&new_data)
-                            .expect("Failed to encode new data"),
-                    )
-                    .expect("Failed to store new data");
-                new_data
-            }
-        },
-        Ok(None) => {
-            let new_data = PuzzleConfig::default();
-            storage
-                .set(
-                    &data_key,
-                    &codee::string::JsonSerdeCodec::encode_str(&new_data)
-                        .expect("Failed to encode new data"),
-                )
-                .expect("Failed to store new data");
-            new_data
-        }
-        Err(e) => panic!("Storage access failed {:?}", e),
+async fn load() -> Result<PuzzleConfig, AppError> {
+    if let Some(config) = load_config_from_storage() {
+        return Ok(config);
     }
+
+    let fetched = fetch_config().await?;
+    if let Err(e) = store_config(&fetched) {
+        leptos::logging::error!("{}", e);
+    }
+    Ok(fetched)
+}
+
+#[derive(Debug, Clone)]
+enum AppError {
+    ConfigLoadError(String),
+}
+
+impl std::fmt::Display for AppError {
+    fn fmt(&self, w: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            AppError::ConfigLoadError(cause) => {
+                write!(w, "Failed to load puzzle config due to: {}", cause)
+            }
+        }
+    }
+}
+
+impl std::error::Error for AppError {}
+
+impl From<web_sys::wasm_bindgen::JsValue> for AppError {
+    fn from(js_val: web_sys::wasm_bindgen::JsValue) -> Self {
+        let js_err = js_sys::Error::from(js_val);
+        Self::ConfigLoadError(js_err.message().as_string().unwrap())
+    }
+}
+
+fn store_config(config: &PuzzleConfig) -> Result<(), AppError> {
+    let storage = get_storage()?;
+    let data =
+        serde_json::to_string(config).map_err(|e| AppError::ConfigLoadError(e.to_string()))?;
+    storage.set(&config_key(), &data).map_err(AppError::from)
+}
+
+fn load_config_from_storage() -> Option<PuzzleConfig> {
+    let storage = get_storage().ok()?;
+    let data = storage.get(&config_key()).ok().flatten()?;
+
+    serde_json::from_str(&data).ok()
+}
+
+fn get_storage() -> Result<web_sys::Storage, AppError> {
+    let window =
+        web_sys::window().ok_or_else(|| AppError::ConfigLoadError("Window unavailable".into()))?;
+    window
+        .local_storage()
+        .map_err(AppError::from)?
+        .ok_or_else(|| AppError::ConfigLoadError("Local storage unavailable".into()))
+}
+
+fn config_key() -> String {
+    format!("puzzle-storage/{}", day_64())
+}
+
+async fn fetch_config() -> Result<PuzzleConfig, AppError> {
+    let tz = get_current_tz()?;
+    let resp = gloo_net::http::Request::get("/puzzle/daily/config")
+        .query([("tz", tz)])
+        .header("accept", "application/json")
+        .send()
+        .await
+        .map_err(|e| AppError::ConfigLoadError(e.to_string()))?;
+
+    let json = resp.json().await;
+    json.map_err(|e| AppError::ConfigLoadError(e.to_string()))
+}
+
+fn get_current_tz() -> Result<String, AppError> {
+    let date = js_sys::Date::new_0();
+    let minutes_to_utc = date.get_timezone_offset();
+    let is_behind = minutes_to_utc.is_sign_positive();
+    let offset_hours = (minutes_to_utc / 60.0).floor() as u64;
+    let offset_minutes = minutes_to_utc as u64 % 60;
+
+    Ok(format!(
+        "{}{:02}:{:02}",
+        if is_behind { "-" } else { "+" },
+        offset_hours,
+        offset_minutes
+    ))
 }
