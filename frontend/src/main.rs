@@ -516,7 +516,7 @@ fn LetterHex(class: String, letter: ReadSignal<Letter>) -> impl IntoView {
                 }
             }
         >
-            {move || letter.read().0}
+            <span>{move || letter.read().0}</span>
         </button>
     }
 }

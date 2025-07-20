@@ -63,10 +63,20 @@ body {
   background-origin: border-box;
 }
 
+.letter > span {
+  color: transparent;
+  text-shadow: none;
+  background-clip: text;
+  background-image: 
+    radial-gradient(
+      circle var(--border-gradient-size) 
+      at var(--border-gradient-x, 500%) var(--border-gradient-y, 500%),
+      var(--border-gradient-light), var(--border-gradient-dark)
+    );
+}
+
 .letter.required {
   grid-area: center;
-  
-  
   --letter-bg-color: var(--color-warning);
 }
 
@@ -77,47 +87,35 @@ body {
 .letter.other:nth-of-type(2) {
   @apply rounded-t-4xl;
   grid-area: one;
-  
-  
 }
 
 .letter.other:nth-of-type(3) {
   @apply rounded-tr-4xl;
   grid-area: two;
-  
-  
 }
 
 .letter.other:nth-of-type(4) {
   @apply rounded-br-4xl;
   grid-area: three;
-  
-  
 }
 
 .letter.other:nth-of-type(5) {
   @apply rounded-b-4xl;
   grid-area: four;
-  
-  
 }
 
 .letter.other:nth-of-type(6) {
   @apply rounded-bl-4xl;
   grid-area: five;
-  
-  
 }
 
 .letter.other:nth-of-type(7) {
   @apply rounded-tl-4xl;
   grid-area: six;
-  
-  
 }
 
 #board {
-  @apply grid;
+  @apply grid gap-8;
   grid-template-rows: 3.5rem 3.5rem 1fr auto;
 }
 
