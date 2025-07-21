@@ -1,0 +1,15 @@
+services:
+
+  postgres:
+    image: postgres:17.5-bookworm
+    ports:
+      - 5432:5432
+    environment:
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: bee
+      POSTGRES_USER: bee
+    networks:
+      - backend
+
+networks:
+  backend:

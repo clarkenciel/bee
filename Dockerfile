@@ -21,6 +21,7 @@ WORKDIR /home/bee
 COPY --chown=bee: --chmod=0100 --from=tini /tini/tini ./tini
 COPY --chown=bee: --chmod=0400 ./frontend/dist/index.html ./index.html
 COPY --chown=bee: --chmod=0700 ./frontend/dist/ ./assets/
+COPY --chown=bee: --chmod=0700 ./.sqlx/ ./.sqlx/
 COPY --chown=bee: --chmod=0100 ./target/release/server ./server
 
 USER bee
