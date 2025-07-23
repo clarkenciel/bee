@@ -30,7 +30,7 @@ async fn main() -> anyhow::Result<()> {
             continue;
         }
 
-        batch.push(line.trim().to_owned());
+        batch.push(line.trim().to_ascii_lowercase());
 
         if batch.len() == opts.batch_size {
             upsert_words(&mut connection, &batch[..]).await?;

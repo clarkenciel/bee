@@ -6,6 +6,6 @@ edition = "2024"
 [dependencies]
 anyhow = "1.0.98"
 clap = { version = "4.5.41", features = ["derive"] }
-sqlx = { version = "0.8.6", default-features = false, features = ["macros", "postgres", "runtime-tokio"] }
+sqlx = { version = "0.8.6", default-features = false, features = ["bit-vec", "macros", "postgres", "runtime-tokio"] }
 tokio = { version = "1.46.1", features = ["fs", "io-util", "macros", "rt-multi-thread", "tokio-macros"] }
 words = { version = "0.1.0", path = "../../words" }

@@ -11,7 +11,7 @@ pub async fn puzzle_config(
     State(configs): State<puzzle_config::ConfigProvider>,
     Query(query): Query<TimezoneQuery>,
 ) -> impl IntoResponse {
-    let config = configs.get_config(&query.tz.parse().unwrap());
+    let config = configs.get_config(&query.tz.parse().unwrap()).await.unwrap();
     let body = serde_json::to_string(&config).unwrap();
     (
         http::StatusCode::OK,
