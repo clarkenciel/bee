@@ -1,11 +1,11 @@
-use std::sync::Arc;
 use std::collections::HashSet;
+use std::sync::Arc;
 
-use serde::Serialize;
 use chrono::{DateTime, Duration, FixedOffset, Timelike, Utc};
 use dashmap::DashMap;
 use puzzle_config::{Letter, PuzzleConfig, Word};
 use rand::{Rng, SeedableRng};
+use serde::Serialize;
 
 struct CachedConfig {
     config: PuzzleConfig,
@@ -46,7 +46,10 @@ impl ConfigProvider {
         }
     }
 
-    pub async fn get_config<'cache>(&'cache self, tz: &FixedOffset) -> Result<ConfigHandle<'cache>, Error> {
+    pub async fn get_config<'cache>(
+        &'cache self,
+        tz: &FixedOffset,
+    ) -> Result<ConfigHandle<'cache>, Error> {
         let now = Utc::now().with_timezone(tz);
         if let Some(cached) = self.cache.get(tz)
             && cached.ttl >= now
@@ -62,12 +65,16 @@ impl ConfigProvider {
                 .insert_entry(CachedConfig { config, ttl })
                 .into_ref()
                 .downgrade()
-                .map(|cached| &cached.config)
+                .map(|cached| &cached.config),
         ))
     }
 
     async fn fetch(&self) -> Result<PuzzleConfig, Error> {
-        let mut conn = self.pool.acquire().await.map_err(|e| Error::DbError(Box::new(e)))?;
+        let mut conn = self
+            .pool
+            .acquire()
+            .await
+            .map_err(|e| Error::DbError(Box::new(e)))?;
         let mut rng = rand::rngs::StdRng::seed_from_u64(day_64());
         let mut letter_mask = 0i32;
         loop {
@@ -80,7 +87,7 @@ impl ConfigProvider {
                     rng.random_range(((required_char as u8 + 1) as char)..='z')
                 };
                 letter_mask |= words::letters::bitmask(&letter);
-            };
+            }
 
             let words = sqlx::query_as!(
                 WordRow,
@@ -90,12 +97,15 @@ impl ConfigProvider {
                 "#r,
                 letter_mask | required_mask,
             )
-                .fetch_all(&mut *conn)
-                .await
-                .map_err(|e| Error::DbError(Box::new(e)))?;
+            .fetch_all(&mut *conn)
+            .await
+            .map_err(|e| Error::DbError(Box::new(e)))?;
 
             if words.len() > 0 {
-                let valid_words: HashSet<_> = words.into_iter().map(|w| Word::new(&w.word, w.is_pangram)).collect();
+                let valid_words: HashSet<_> = words
+                    .into_iter()
+                    .map(|w| Word::new(&w.word, w.is_pangram))
+                    .collect();
                 let max_score = valid_words.iter().map(|w| w.score()).sum::<u32>() as f32;
                 let score_buckets = [
                     ("Beginner".to_owned(), (max_score * 0.0).trunc() as u32),
@@ -112,9 +122,13 @@ impl ConfigProvider {
                     valid_words,
                     score_buckets,
                     required_letter: Letter::new(words::letters::from_bitmask(&required_mask)),
-                    other_letters: words::vec_from_bitmask(&letter_mask).into_iter().map(|l| Letter::new(l)).collect(),
-                })
+                    other_letters: words::vec_from_bitmask(&letter_mask)
+                        .into_iter()
+                        .map(|l| Letter::new(l))
+                        .collect(),
+                });
             }
+            letter_mask = 0i32;
         }
     }
 }
@@ -133,7 +147,9 @@ pub enum Error {
 impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            Self::DbError(cause) => write!(f, "Failed to load puzzle config from database: {}", cause),
+            Self::DbError(cause) => {
+                write!(f, "Failed to load puzzle config from database: {}", cause)
+            }
         }
     }
 }
