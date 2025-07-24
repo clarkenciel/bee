@@ -81,19 +81,14 @@ impl ConfigProvider {
             let required_char = rng.random_range('a'..='z');
             let required_mask = words::letters::bitmask(&required_char);
             for _ in 0..6 {
-                let front_range = 'a'..required_char;
-                let back_range = ((required_char as u8 + 1) as char)..='z';
+                loop {
+                    let letter = words::letters::bitmask(&rng.random_range('a'..='z'));
+                    if letter & required_mask & letter_mask == 0 {
+                        letter_mask |= letter;
 
-                let letter = if front_range.is_empty() {
-                    rng.random_range(back_range)
-                } else if back_range.is_empty() {
-                    rng.random_range(front_range)
-                } else if rng.random_bool(0.5) {
-                    rng.random_range(front_range)
-                } else {
-                    rng.random_range(back_range)
-                };
-                letter_mask |= words::letters::bitmask(&letter);
+                        break;
+                    }
+                }
             }
 
             let words = sqlx::query_as!(
