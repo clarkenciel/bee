@@ -91,17 +91,30 @@ impl ConfigProvider {
                 }
             }
 
+            #[cfg(debug_assertions)]
+            println!(
+                "required: {:?}, letters: {:?}",
+                words::letters::from_bitmask(&required_mask),
+                words::vec_from_bitmask(&letter_mask)
+            );
             let words = sqlx::query_as!(
                 WordRow,
+                r#"select word, letter_mask & $2 = $2 as "is_pangram!"
                 from words
+                where letter_mask & $1 = $1
+                and letter_mask | $2 = $2
                 "#r,
+                required_mask,
                 letter_mask | required_mask,
             )
             .fetch_all(&mut *conn)
             .await
             .map_err(|e| Error::DbError(Box::new(e)))?;
 
-            if words.len() > 0 {
+            #[cfg(debug_assertions)]
+            println!("words: {:?}", words);
+
+            if words.len() > 10 && words.iter().any(|w| w.is_pangram) {
                 let valid_words: HashSet<_> = words
                     .into_iter()
                     .map(|w| Word::new(&w.word, w.is_pangram))
@@ -133,7 +146,7 @@ impl ConfigProvider {
     }
 }
 
-#[derive(sqlx::FromRow)]
+#[derive(sqlx::FromRow, Debug)]
 struct WordRow {
     word: String,
     is_pangram: bool,
