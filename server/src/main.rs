@@ -1,9 +1,14 @@
-use axum::{Router, routing::get};
+use axum::{
+    Router,
+    routing::{get, post},
+};
 
 use tower_http::services::{ServeDir, ServeFile};
 
 mod handlers;
 mod puzzle_config;
+mod responses;
+mod services;
 
 #[tokio::main]
 async fn main() {
@@ -23,7 +28,12 @@ async fn main() {
             "/puzzle/daily/config",
             get(handlers::puzzle_config::puzzle_config),
         )
-        .with_state(crate::puzzle_config::ConfigProvider::new(dbpool))
+        .with_state(crate::puzzle_config::ConfigProvider::new(dbpool.clone()))
+        .route(
+            "/words",
+            post(handlers::words::add_words::<crate::services::words::pg::AddWords>),
+        )
+        .with_state(crate::services::words::pg::AddWords(dbpool.clone()))
         .nest_service("/assets", assets)
         .fallback_service(index);
 
