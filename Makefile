@@ -10,7 +10,10 @@ frontend/dist: frontend/src/*.rs frontend/input.css frontend/Trunk.toml frontend
 image: target/release/server frontend/dist
 	docker build -f Dockerfile -t bee:latest .
 
-.PHONY: clean
+.PHONY: clean fe-clean
 
-clean:
-	cargo clean && cd frontend && trunk clean
+clean: fe-clean
+	cargo clean
+
+fe-clean:
+	cd frontend && trunk clean
