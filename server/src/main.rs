@@ -34,6 +34,11 @@ async fn main() {
             post(handlers::words::add_words::<crate::services::words::pg::AddWords>),
         )
         .with_state(crate::services::words::pg::AddWords(dbpool.clone()))
+        .route(
+            "/words/remove",
+            post(handlers::words::remove_words::<crate::services::words::pg::RemoveWords>),
+        )
+        .with_state(crate::services::words::pg::RemoveWords(dbpool.clone()))
         .nest_service("/assets", assets)
         .fallback_service(index);
 

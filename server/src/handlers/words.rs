@@ -1,7 +1,7 @@
 use axum::{Json, extract::State, http::StatusCode, response::IntoResponse};
 use serde::Deserialize;
 
-use crate::services::words::AddWords;
+use crate::services::words::{AddWords, RemoveWords};
 
 pub(crate) async fn add_words<Service>(
     State(service): State<Service>,
@@ -31,5 +31,24 @@ where
 
 #[derive(Debug, Deserialize)]
 pub(crate) struct AddWordsForm {
+    pub(crate) words: Vec<String>,
+}
+
+pub(crate) async fn remove_words<Service>(
+    State(service): State<Service>,
+    Json(form): Json<RemoveWordsForm>,
+) -> impl IntoResponse
+where
+    Service: RemoveWords,
+{
+    match service.remove_words(&form.words).await {
+        Ok(_) => StatusCode::NO_CONTENT.into_response(),
+        Err(e) => crate::responses::Error::new(StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
+            .into_response(),
+    }
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct RemoveWordsForm {
     pub(crate) words: Vec<String>,
 }
