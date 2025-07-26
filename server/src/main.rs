@@ -35,19 +35,26 @@ async fn main() {
     let app = Router::new()
         .route(
             "/api/puzzle/daily/config",
-            get(handlers::puzzle_config::puzzle_config),
+            get(handlers::puzzle_config::puzzle_config)
+                .with_state(crate::puzzle_config::ConfigProvider::new(dbpool.clone())),
         )
-        .with_state(crate::puzzle_config::ConfigProvider::new(dbpool.clone()))
         .route(
             "/api/words",
-            post(handlers::words::add_words::<crate::services::words::pg::AddWords>),
+            post(handlers::words::add_words::<crate::services::words::pg::AddWords>)
+                .with_state(crate::services::words::pg::AddWords(dbpool.clone()))
+                .get(handlers::management::list_words::<crate::services::words::pg::ListWords>)
+                .with_state(crate::services::words::pg::ListWords(dbpool.clone())),
         )
-        .with_state(crate::services::words::pg::AddWords(dbpool.clone()))
+        .route(
+            "/api/words/search",
+            get(handlers::management::search::<crate::services::words::pg::SearchWords>)
+                .with_state(crate::services::words::pg::SearchWords(dbpool.clone())),
+        )
         .route(
             "/api/words/remove",
-            post(handlers::words::remove_words::<crate::services::words::pg::RemoveWords>),
+            post(handlers::words::remove_words::<crate::services::words::pg::RemoveWords>)
+                .with_state(crate::services::words::pg::RemoveWords(dbpool.clone())),
         )
-        .with_state(crate::services::words::pg::RemoveWords(dbpool.clone()))
         .nest_service("/assets", assets)
         .fallback_service(index);
 

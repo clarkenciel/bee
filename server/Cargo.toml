@@ -5,6 +5,7 @@ edition = "2024"
 
 [dependencies]
 axum = "0.8.4"
+base64 = "0.22.1"
 chrono = { version = "0.4.41", default-features = false, features = ["std", "iana-time-zone", "now"] }
 dashmap = "6.1.0"
 dotenvy = { version = "0.15.7", default-features = false }
