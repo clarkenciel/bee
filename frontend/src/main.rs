@@ -5,6 +5,7 @@ use leptos_router::{
 };
 
 mod game;
+mod management;
 
 fn main() {
     console_error_panic_hook::set_once();
@@ -17,6 +18,7 @@ fn App() -> impl IntoView {
         <Router>
             <Routes fallback=|| "Not found">
                 <Route path=path!("/") view=game::Game />
+                <Route path=path!("/manage/words") view=management::Management />
             </Routes>
         </Router>
     }
