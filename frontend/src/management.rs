@@ -83,7 +83,7 @@ async fn search_words(term: Result<WordSearch, ParamsError>) -> Option<Vec<Strin
             .send()
             .await
             .ok()?;
-        let json = resp.json::<SearchResponse>().await.ok()?;
+        let json = resp.json::<search::SearchedWords>().await.ok()?;
 
         Some(json.words)
     } else {

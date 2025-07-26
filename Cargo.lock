@@ -747,6 +747,7 @@ dependencies = [
  "puzzle-config",
  "rand 0.9.1",
  "reactive_stores",
+ "search",
  "serde",
  "serde_json",
  "web-sys",
@@ -2194,6 +2195,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "94143f37725109f92c262ed2cf5e59bce7498c01bcc1502d7b9afe439a4e9f49"
 
 [[package]]
+name = "search"
+version = "0.1.0"
+dependencies = [
+ "serde",
+]
+
+[[package]]
 name = "semver"
 version = "1.0.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2293,6 +2301,7 @@ dependencies = [
  "dotenvy",
  "puzzle-config",
  "rand 0.9.1",
+ "search",
  "serde",
  "serde_json",
  "sqlx",
@@ -2301,6 +2310,7 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "words",
+ "words-list",
 ]
 
 [[package]]
@@ -3495,6 +3505,13 @@ dependencies = [
 [[package]]
 name = "words"
 version = "0.1.0"
+
+[[package]]
+name = "words-list"
+version = "0.1.0"
+dependencies = [
+ "serde",
+]
 
 [[package]]
 name = "writeable"

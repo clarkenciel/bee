@@ -29,17 +29,27 @@ where
     match service.list(&cursor, None).await {
         Err(e) => crate::responses::Error::new(StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
             .into_response(),
-        Ok(crate::services::words::ListedWords { words, next_page }) => (
-            StatusCode::OK,
-            [("content-type", "application/json")],
-            Json(serde_json::json!({
-                "words": words,
-                "pageInfo": {
-                    "next": next_page.and_then(|np| cursor_to_url(&np).ok()),
-                }
-            })),
-        )
-            .into_response(),
+        Ok(crate::services::words::ListedWords { words, next_page }) => {
+            (
+                StatusCode::OK,
+                [("content-type", "application/json")],
+                Json(words_list::Words {
+                    words: words
+                        .into_iter()
+                        .map(|w| words_list::Word {
+                            text: w.text,
+                            cursor: words_list::Cursor(cursor_to_url(&w.cursor).unwrap()),
+                        })
+                        .collect(),
+                    pagination: words_list::Pagination {
+                        next_page: next_page
+                            .and_then(|np| cursor_to_url(&np).map(|c| words_list::Cursor(c)).ok()),
+                        prev_page: None,
+                    },
+                }),
+            )
+        }
+        .into_response(),
     }
 }
 
@@ -80,9 +90,7 @@ where
         Ok(results) => (
             StatusCode::OK,
             [("content-type", "application/json")],
-            Json(serde_json::json!({
-                "words": results
-            })),
+            Json(search::SearchedWords { words: results }),
         )
             .into_response(),
     }

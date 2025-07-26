@@ -72,8 +72,14 @@ pub(crate) mod words {
 
     #[derive(Debug)]
     pub(crate) struct ListedWords {
-        pub(crate) words: Vec<String>,
+        pub(crate) words: Vec<Word>,
         pub(crate) next_page: Option<ListCursor>,
+    }
+
+    #[derive(Debug)]
+    pub(crate) struct Word {
+        pub(crate) text: String,
+        pub(crate) cursor: ListCursor,
     }
 
     #[derive(Debug)]
@@ -231,7 +237,13 @@ pub(crate) mod words {
                     None
                 };
                 Ok(super::ListedWords {
-                    words: results.into_iter().map(|w| w.word).collect(),
+                    words: results
+                        .into_iter()
+                        .map(|w| super::Word {
+                            text: w.word.clone(),
+                            cursor: super::ListCursor { after: w.word },
+                        })
+                        .collect(),
                     next_page,
                 })
             }
