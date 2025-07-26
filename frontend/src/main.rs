@@ -632,7 +632,7 @@ fn config_key() -> String {
 
 async fn fetch_config() -> Result<PuzzleConfig, AppError> {
     let tz = get_current_tz()?;
-    let resp = gloo_net::http::Request::get("/puzzle/daily/config")
+    let resp = gloo_net::http::Request::get("/api/puzzle/daily/config")
         .query([("tz", tz)])
         .header("accept", "application/json")
         .send()

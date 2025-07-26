@@ -25,17 +25,17 @@ async fn main() {
     let assets = ServeDir::new("assets");
     let app = Router::new()
         .route(
-            "/puzzle/daily/config",
+            "/api/puzzle/daily/config",
             get(handlers::puzzle_config::puzzle_config),
         )
         .with_state(crate::puzzle_config::ConfigProvider::new(dbpool.clone()))
         .route(
-            "/words",
+            "/api/words",
             post(handlers::words::add_words::<crate::services::words::pg::AddWords>),
         )
         .with_state(crate::services::words::pg::AddWords(dbpool.clone()))
         .route(
-            "/words/remove",
+            "/api/words/remove",
             post(handlers::words::remove_words::<crate::services::words::pg::RemoveWords>),
         )
         .with_state(crate::services::words::pg::RemoveWords(dbpool.clone()))
