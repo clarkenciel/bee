@@ -6,7 +6,7 @@ pub(crate) mod words {
     }
 
     pub(crate) mod pg {
-        use super::AddWordsError;
+        use super::{AddWordsError, RemoveWordsError};
 
         #[derive(Clone)]
         pub(crate) struct AddWords(pub(crate) sqlx::PgPool);
@@ -35,6 +35,28 @@ pub(crate) mod words {
                     .map(|_| ())
             }
         }
+
+        #[derive(Clone)]
+        pub(crate) struct RemoveWords(pub(crate) sqlx::PgPool);
+
+        impl super::RemoveWords for RemoveWords {
+            async fn remove_words(&self, words: &[String]) -> Result<(), RemoveWordsError> {
+                let mut conn = self
+                    .0
+                    .acquire()
+                    .await
+                    .map_err(|e| RemoveWordsError::DbError(Box::new(e)))?;
+
+                sqlx::query!(
+                    "delete from words where word in (select * from unnest($1::text[]))",
+                    words
+                )
+                .execute(&mut *conn)
+                .await
+                .map_err(|e| RemoveWordsError::DbError(Box::new(e)))
+                .map(|_| ())
+            }
+        }
     }
 
     #[derive(Debug)]
@@ -53,4 +75,23 @@ pub(crate) mod words {
     }
 
     impl std::error::Error for AddWordsError {}
+
+    pub(crate) trait RemoveWords {
+        async fn remove_words(&self, words: &[String]) -> Result<(), RemoveWordsError>;
+    }
+
+    #[derive(Debug)]
+    pub(crate) enum RemoveWordsError {
+        DbError(Box<dyn std::error::Error>),
+    }
+
+    impl Display for RemoveWordsError {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            match self {
+                RemoveWordsError::DbError(error) => {
+                    write!(f, "Failed to remove words due to database error: {}", error)
+                }
+            }
+        }
+    }
 }
