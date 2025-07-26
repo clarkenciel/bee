@@ -4,6 +4,7 @@ use axum::{
 };
 
 use tower_http::services::{ServeDir, ServeFile};
+use tracing_subscriber::{layer::SubscriberExt as _, util::SubscriberInitExt};
 
 mod handlers;
 mod puzzle_config;
@@ -12,6 +13,14 @@ mod services;
 
 #[tokio::main]
 async fn main() {
+    if let Err(e) = tracing_subscriber::registry()
+        .with(tracing_subscriber::fmt::layer())
+        .with(tracing_subscriber::EnvFilter::from_env("BEE_LOG_LEVEL"))
+        .try_init()
+    {
+        eprintln!("Failed to init tracing: {}", e);
+    }
+
     if let Err(e) = dotenvy::dotenv() {
         eprintln!("Failed to load dotenv file: {}", e);
     }

@@ -38,6 +38,12 @@ pub struct ConfigProvider {
     pool: sqlx::PgPool,
 }
 
+impl std::fmt::Debug for ConfigProvider {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "ConfigProvider")
+    }
+}
+
 impl ConfigProvider {
     pub fn new(pool: sqlx::PgPool) -> Self {
         Self {
@@ -69,6 +75,7 @@ impl ConfigProvider {
         ))
     }
 
+    #[tracing::instrument]
     async fn fetch(&self) -> Result<PuzzleConfig, Error> {
         let mut conn = self
             .pool
@@ -80,22 +87,27 @@ impl ConfigProvider {
         loop {
             let required_char = rng.random_range('a'..='z');
             let required_mask = words::letters::bitmask(&required_char);
-            for _ in 0..6 {
+            for i in 0..6 {
                 loop {
                     let letter = words::letters::bitmask(&rng.random_range('a'..='z'));
-                    if letter & required_mask & letter_mask == 0 {
+                    if letter & (required_mask | letter_mask) == 0 {
+                        tracing::debug!(
+                            letter = ?words::vec_from_bitmask(&letter),
+                            required_mask = ?words::vec_from_bitmask(&required_mask),
+                            optional_letters = ?words::vec_from_bitmask(&letter_mask),
+                            "new letter found",
+                        );
                         letter_mask |= letter;
 
                         break;
                     }
                 }
+                tracing::debug!(i, mask_so_far = ?words::vec_from_bitmask(&letter_mask));
             }
 
-            #[cfg(debug_assertions)]
-            println!(
-                "required: {:?}, letters: {:?}",
-                words::letters::from_bitmask(&required_mask),
-                words::vec_from_bitmask(&letter_mask)
+            tracing::debug!(
+                required = ?words::letters::from_bitmask(&required_mask),
+                letters = ?words::vec_from_bitmask(&letter_mask)
             );
             let words = sqlx::query_as!(
                 WordRow,
@@ -111,8 +123,7 @@ impl ConfigProvider {
             .await
             .map_err(|e| Error::DbError(Box::new(e)))?;
 
-            #[cfg(debug_assertions)]
-            println!("words: {:?}", words);
+            tracing::debug!(words = ?words);
 
             if words.len() > 10 && words.iter().any(|w| w.is_pangram) {
                 let valid_words: HashSet<_> = words
